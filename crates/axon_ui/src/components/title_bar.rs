@@ -96,9 +96,11 @@ impl Render for TitleBar {
             .border_color(rgb(0x333333))
             .content_stretch()
             // Mouse event handlers for non-Windows platforms
-            .on_mouse_down_out(cx.listener(move |this, _ev: &MouseDownEvent, _window, _cx| {
-                this.should_move = false;
-            }))
+            .on_mouse_down_out(
+                cx.listener(move |this, _ev: &MouseDownEvent, _window, _cx| {
+                    this.should_move = false;
+                }),
+            )
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(move |this, _ev: &MouseUpEvent, _window, _cx| {
@@ -152,17 +154,14 @@ impl Render for TitleBar {
             // Spacer
             .child(div().flex_1())
             // Window controls (right side)
-            .when(!is_fullscreen, |title_bar: Stateful<Div>| {
-                match platform_style {
+            .when(
+                !is_fullscreen,
+                |title_bar: Stateful<Div>| match platform_style {
                     PlatformStyle::Mac => title_bar,
-                    PlatformStyle::Linux => {
-                        title_bar.child(LinuxWindowControls::new())
-                    }
-                    PlatformStyle::Windows => {
-                        title_bar.child(WindowsWindowControls::new(height))
-                    }
-                }
-            })
+                    PlatformStyle::Linux => title_bar.child(LinuxWindowControls::new()),
+                    PlatformStyle::Windows => title_bar.child(WindowsWindowControls::new(height)),
+                },
+            )
     }
 }
 
@@ -206,10 +205,13 @@ impl RenderOnce for TabItem {
             // Occlude blocks mouse events from passing through to drag area
             // This is correct - clicking on tabs should NOT trigger window drag
             .occlude()
-            .on_mouse_down(MouseButton::Left, |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
-                window.prevent_default();
-                cx.stop_propagation();
-            })
+            .on_mouse_down(
+                MouseButton::Left,
+                |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
+                    window.prevent_default();
+                    cx.stop_propagation();
+                },
+            )
             .child(
                 div()
                     .text_sm()
@@ -246,16 +248,14 @@ impl RenderOnce for NewTabButton {
             // Occlude blocks mouse events from passing through
             // This is correct - clicking on new tab button should NOT trigger window drag
             .occlude()
-            .on_mouse_down(MouseButton::Left, |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
-                window.prevent_default();
-                cx.stop_propagation();
-            })
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(rgb(0x888888))
-                    .child("+"),
+            .on_mouse_down(
+                MouseButton::Left,
+                |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
+                    window.prevent_default();
+                    cx.stop_propagation();
+                },
             )
+            .child(div().text_sm().text_color(rgb(0x888888)).child("+"))
     }
 }
 
@@ -339,10 +339,10 @@ impl WindowsCaptionButton {
     fn icon(&self) -> &'static str {
         // Segoe Fluent Icons / Segoe MDL2 Assets unicode characters
         match self {
-            Self::Minimize => "\u{e921}",  // MinimizeWindow
-            Self::Restore => "\u{e923}",   // RestoreWindow
-            Self::Maximize => "\u{e922}",  // MaximizeWindow
-            Self::Close => "\u{e8bb}",     // ChromeClose
+            Self::Minimize => "\u{e921}", // MinimizeWindow
+            Self::Restore => "\u{e923}",  // RestoreWindow
+            Self::Maximize => "\u{e922}", // MaximizeWindow
+            Self::Close => "\u{e8bb}",    // ChromeClose
         }
     }
 
@@ -365,12 +365,7 @@ impl RenderOnce for WindowsCaptionButton {
                 rgba(0xe8112399),
                 rgba(0xffffffcc),
             ),
-            _ => (
-                rgb(0x3d3d3d),
-                rgb(0xcccccc),
-                rgb(0x4d4d4d),
-                rgb(0xcccccc),
-            ),
+            _ => (rgb(0x3d3d3d), rgb(0xcccccc), rgb(0x4d4d4d), rgb(0xcccccc)),
         };
 
         div()
@@ -473,10 +468,13 @@ impl RenderOnce for LinuxCaptionButton {
             .occlude()
             .hover(move |style: StyleRefinement| style.bg(hover_bg).text_color(hover_fg))
             .active(move |style: StyleRefinement| style.bg(hover_bg).opacity(0.8))
-            .on_mouse_down(MouseButton::Left, |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
-                window.prevent_default();
-                cx.stop_propagation();
-            })
+            .on_mouse_down(
+                MouseButton::Left,
+                |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
+                    window.prevent_default();
+                    cx.stop_propagation();
+                },
+            )
             .on_click(move |_: &ClickEvent, window: &mut Window, cx: &mut App| {
                 cx.stop_propagation();
                 match action {

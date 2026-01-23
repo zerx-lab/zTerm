@@ -6,11 +6,13 @@
 //! - Uses direct paint calls instead of creating div elements
 //! - Resizes terminal based on actual bounds during prepaint
 
+use crate::components::SharedBounds;
 use crate::theme::TerminalTheme;
 use axon_terminal::alacritty_terminal::term::cell::Flags;
 use axon_terminal::alacritty_terminal::vte::ansi::Color as AnsiColor;
 use axon_terminal::{IndexedCell, Terminal, TerminalBounds, TerminalContent};
 use gpui::*;
+use unicode_width::UnicodeWidthChar;
 
 /// Selection range in the terminal
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,6 +46,8 @@ pub struct StyledRun {
     text: String,
     line: i32,
     start_col: usize,
+    /// Number of terminal columns this run spans (accounts for wide chars like CJK)
+    col_span: usize,
     fg_color: Rgba,
     bg_color: Option<Rgba>,
     bold: bool,
@@ -71,6 +75,8 @@ pub struct TerminalElement {
     terminal: Entity<Terminal>,
     theme: TerminalTheme,
     selection: Option<Selection>,
+    /// Shared bounds for mouse position calculation
+    shared_bounds: Option<SharedBounds>,
 }
 
 impl TerminalElement {
@@ -80,19 +86,22 @@ impl TerminalElement {
             terminal,
             theme,
             selection: None,
+            shared_bounds: None,
         }
     }
 
-    /// Create with selection
+    /// Create with selection and shared bounds for mouse coordinate conversion
     pub fn with_selection(
         terminal: Entity<Terminal>,
         theme: TerminalTheme,
         selection: Option<Selection>,
+        shared_bounds: SharedBounds,
     ) -> Self {
         Self {
             terminal,
             theme,
             selection,
+            shared_bounds: Some(shared_bounds),
         }
     }
 
@@ -220,6 +229,26 @@ impl TerminalElement {
                     continue;
                 }
 
+                // Skip wide char spacers - they are placeholders for the second column
+                // of wide characters (like CJK). The actual character is in the previous cell.
+                if cell.cell.flags.contains(Flags::WIDE_CHAR_SPACER) {
+                    continue;
+                }
+
+                // Calculate character width using Unicode width rules:
+                // - ASCII characters: 1 column
+                // - CJK characters (Chinese, Japanese, Korean): 2 columns
+                // - Emoji: typically 2 columns
+                // - Zero-width characters: 0 columns
+                // Fallback to Flags::WIDE_CHAR if unicode-width returns None
+                let char_col_span = c.width().unwrap_or_else(|| {
+                    if cell.cell.flags.contains(Flags::WIDE_CHAR) {
+                        2
+                    } else {
+                        1
+                    }
+                });
+
                 // Check cursor using terminal coordinates (not visual)
                 let is_cursor = term_line == cursor_term_line && col == cursor_col;
                 let is_selected = self
@@ -249,15 +278,17 @@ impl TerminalElement {
 
                 // Check if we can extend the current run
                 if let Some(ref mut run) = current_run {
+                    // Use col_span to track actual column position instead of chars().count()
                     let can_extend = run.fg_color == fg_color
                         && run.bg_color == bg_color
                         && run.bold == bold
                         && run.italic == italic
                         && run.underline == underline
-                        && (run.start_col + run.text.chars().count()) == col;
+                        && (run.start_col + run.col_span) == col;
 
                     if can_extend {
                         run.text.push(c);
+                        run.col_span += char_col_span;
                         continue;
                     } else {
                         // Finish current run and start new one
@@ -270,6 +301,7 @@ impl TerminalElement {
                     text: c.to_string(),
                     line: visual_line,
                     start_col: col,
+                    col_span: char_col_span,
                     fg_color,
                     bg_color,
                     bold,
@@ -379,6 +411,14 @@ impl Element for TerminalElement {
         window: &mut Window,
         cx: &mut App,
     ) {
+        // Update shared bounds for mouse position calculation
+        // This allows TerminalView to convert window coordinates to element-relative coordinates
+        if let Some(ref shared_bounds) = self.shared_bounds {
+            shared_bounds.bounds.set(Some(bounds));
+            shared_bounds.cell_width.set(Some(layout.cell_width));
+            shared_bounds.line_height.set(Some(layout.line_height));
+        }
+
         // Paint background
         window.paint_quad(fill(bounds, layout.background));
 
@@ -395,13 +435,11 @@ impl Element for TerminalElement {
             let y = origin.y + layout.line_height * run.line as f32;
 
             // Paint background if needed
+            // Use col_span instead of chars().count() to correctly handle wide characters (CJK)
             if let Some(bg) = run.bg_color {
                 let bg_bounds = Bounds::new(
                     point(x, y),
-                    size(
-                        layout.cell_width * run.text.chars().count() as f32,
-                        layout.line_height,
-                    ),
+                    size(layout.cell_width * run.col_span as f32, layout.line_height),
                 );
                 window.paint_quad(fill(bg_bounds, bg));
             }
@@ -416,6 +454,8 @@ impl Element for TerminalElement {
             }
 
             // Shape and paint text
+            // Pass cell_width to shape_line to force monospace grid layout
+            // This ensures all characters align to the terminal grid regardless of actual glyph width
             let text_run = gpui::TextRun {
                 len: run.text.len(),
                 font: text_font,
@@ -437,7 +477,7 @@ impl Element for TerminalElement {
                 run.text.clone().into(),
                 font_size,
                 &[text_run],
-                None,
+                Some(layout.cell_width), // Force monospace grid layout like Zed does
             );
 
             let _ = shaped_line.paint(

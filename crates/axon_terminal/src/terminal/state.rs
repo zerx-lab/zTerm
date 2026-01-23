@@ -216,17 +216,8 @@ impl Terminal {
         let term = Term::new(config, &bounds, listener.clone());
         let term = Arc::new(FairMutex::new(term));
 
-        // Setup PTY options
-        let shell_program = shell.clone().unwrap_or_else(|| {
-            #[cfg(windows)]
-            {
-                std::env::var("COMSPEC").unwrap_or_else(|_| "powershell.exe".to_string())
-            }
-            #[cfg(not(windows))]
-            {
-                std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
-            }
-        });
+        // Setup PTY options - use our detect_shell function for proper defaults
+        let shell_program = shell.clone().unwrap_or_else(crate::platform::detect_shell);
 
         let alac_shell = tty::Shell::new(shell_program, vec![]);
         let mut env: HashMap<String, String> = std::env::vars().collect();

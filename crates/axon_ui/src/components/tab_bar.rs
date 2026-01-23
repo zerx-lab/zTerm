@@ -18,9 +18,7 @@ pub struct TerminalTabBar {
 impl TerminalTabBar {
     /// Create a new tab bar
     pub fn new() -> Self {
-        Self {
-            tabs: vec![],
-        }
+        Self { tabs: vec![] }
     }
 
     /// Set the tabs
@@ -77,7 +75,7 @@ impl RenderOnce for TerminalTabBar {
                             } else {
                                 rgb(0x888888)
                             })
-                            .child(tab.title)
+                            .child(tab.title),
                     )
             }))
             .child(
@@ -93,12 +91,7 @@ impl RenderOnce for TerminalTabBar {
                     .rounded_md()
                     .hover(|style| style.bg(rgb(0x3d3d3d)))
                     .cursor_pointer()
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(rgb(0x888888))
-                            .child("+")
-                    )
+                    .child(div().text_sm().text_color(rgb(0x888888)).child("+")),
             )
     }
 }

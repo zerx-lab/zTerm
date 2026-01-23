@@ -17,17 +17,13 @@ pub fn detect_shell() -> String {
 
 #[cfg(windows)]
 fn detect_windows_shell() -> String {
-    // Check for SHELL environment variable first
+    // Check for SHELL environment variable first (user override)
     if let Ok(shell) = env::var("SHELL") {
         return shell;
     }
 
-    // Check for COMSPEC
-    if let Ok(shell) = env::var("COMSPEC") {
-        return shell;
-    }
-
-    // Check for PowerShell
+    // Prefer PowerShell as default on Windows
+    // Check for PowerShell Core (pwsh) first, then Windows PowerShell
     if which::which("pwsh").is_ok() {
         return "pwsh".to_string();
     }
@@ -36,7 +32,12 @@ fn detect_windows_shell() -> String {
         return "powershell".to_string();
     }
 
-    // Fallback to cmd
+    // Fallback to COMSPEC (usually cmd.exe)
+    if let Ok(shell) = env::var("COMSPEC") {
+        return shell;
+    }
+
+    // Last resort fallback
     "cmd.exe".to_string()
 }
 
@@ -48,12 +49,7 @@ fn detect_unix_shell() -> String {
     }
 
     // Check for common shells
-    let shell_candidates = [
-        "/bin/zsh",
-        "/bin/bash",
-        "/bin/fish",
-        "/bin/sh",
-    ];
+    let shell_candidates = ["/bin/zsh", "/bin/bash", "/bin/fish", "/bin/sh"];
 
     for shell in shell_candidates {
         if std::path::Path::new(shell).exists() {

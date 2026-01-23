@@ -4,6 +4,8 @@ use crate::elements::{Selection, TerminalElement};
 use crate::theme::TerminalTheme;
 use axon_terminal::{Terminal, TerminalEvent};
 use gpui::*;
+use std::cell::Cell;
+use std::rc::Rc;
 
 /// Terminal font family (must match main_window.rs)
 const TERMINAL_FONT_FAMILY: &str = "Consolas";
@@ -15,6 +17,27 @@ const TERMINAL_FONT_SIZE: f32 = 14.0;
 pub struct GridPosition {
     pub col: usize,
     pub row: usize,
+}
+
+/// Shared bounds for coordinate conversion between TerminalElement and TerminalView
+#[derive(Clone)]
+pub struct SharedBounds {
+    /// The actual bounds of TerminalElement in window coordinates
+    pub bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
+    /// Cell width measured during paint
+    pub cell_width: Rc<Cell<Option<Pixels>>>,
+    /// Line height measured during paint
+    pub line_height: Rc<Cell<Option<Pixels>>>,
+}
+
+impl Default for SharedBounds {
+    fn default() -> Self {
+        Self {
+            bounds: Rc::new(Cell::new(None)),
+            cell_width: Rc::new(Cell::new(None)),
+            line_height: Rc::new(Cell::new(None)),
+        }
+    }
 }
 
 /// The main terminal view component
@@ -40,11 +63,11 @@ pub struct TerminalView {
     /// Whether we are currently dragging to select
     is_selecting: bool,
 
-    /// Cached cell width (measured from text system)
+    /// Cached cell width (measured from text system, used for fallback)
     cell_width: Option<Pixels>,
 
-    /// Cached cell height
-    cell_height: Pixels,
+    /// Shared bounds with TerminalElement for accurate mouse position calculation
+    shared_bounds: SharedBounds,
 }
 
 impl TerminalView {
@@ -52,9 +75,6 @@ impl TerminalView {
     pub fn new(terminal: Entity<Terminal>, cx: &mut Context<Self>) -> Self {
         let focus_handle = cx.focus_handle();
         let theme = TerminalTheme::default();
-
-        // Cell height is calculated from theme
-        let cell_height = px(theme.font_size * theme.line_height);
 
         // Subscribe to terminal events
         cx.subscribe(&terminal, Self::on_terminal_event).detach();
@@ -68,7 +88,7 @@ impl TerminalView {
             selection_end: None,
             is_selecting: false,
             cell_width: None, // Will be measured on first use
-            cell_height,
+            shared_bounds: SharedBounds::default(),
         }
     }
 
@@ -180,7 +200,12 @@ impl TerminalView {
     }
 
     /// Handle scroll wheel events
-    fn on_scroll(&mut self, event: &ScrollWheelEvent, _window: &mut Window, cx: &mut Context<Self>) {
+    fn on_scroll(
+        &mut self,
+        event: &ScrollWheelEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         // Calculate scroll delta in lines
         let line_delta: i32 = match event.delta {
             ScrollDelta::Lines(lines) => lines.y as i32,
@@ -231,7 +256,12 @@ impl TerminalView {
     }
 
     /// Handle mouse down for focus and selection start
-    fn on_mouse_down(&mut self, event: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+    fn on_mouse_down(
+        &mut self,
+        event: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         window.focus(&self.focus_handle, cx);
 
         // Start selection
@@ -244,7 +274,12 @@ impl TerminalView {
     }
 
     /// Handle mouse move for selection update
-    fn on_mouse_move(&mut self, event: &MouseMoveEvent, _window: &mut Window, cx: &mut Context<Self>) {
+    fn on_mouse_move(
+        &mut self,
+        event: &MouseMoveEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.is_selecting {
             if let Some(pos) = self.position_from_mouse(event.position, cx) {
                 self.selection_end = Some(pos);
@@ -266,27 +301,49 @@ impl TerminalView {
     }
 
     /// Convert mouse position to grid position
-    fn position_from_mouse(&self, position: Point<Pixels>, cx: &Context<Self>) -> Option<GridPosition> {
+    ///
+    /// Mouse position is in window coordinates. We need to:
+    /// 1. Get the actual bounds of TerminalElement (stored during paint)
+    /// 2. Calculate position relative to the element's origin
+    /// 3. Convert to grid coordinates using actual cell dimensions
+    fn position_from_mouse(
+        &self,
+        position: Point<Pixels>,
+        cx: &Context<Self>,
+    ) -> Option<GridPosition> {
         let terminal = self.terminal.read(cx);
         let size = terminal.size();
 
-        // Get cell width (use cached or fallback)
-        let cell_width: f32 = self.cell_width
+        // Get actual bounds from TerminalElement (set during paint phase)
+        let bounds = self.shared_bounds.bounds.get()?;
+
+        // Get actual cell dimensions from TerminalElement (set during paint phase)
+        let cell_width: f32 = self
+            .shared_bounds
+            .cell_width
+            .get()
             .map(|w| w.into())
             .unwrap_or(TERMINAL_FONT_SIZE * 0.6);
-        let cell_height: f32 = self.cell_height.into();
+        let cell_height: f32 = self
+            .shared_bounds
+            .line_height
+            .get()
+            .map(|h| h.into())
+            .unwrap_or(TERMINAL_FONT_SIZE * 1.4);
 
-        // Account for padding (3px)
-        let padding = 3.0;
+        // Convert window coordinates to element-relative coordinates
         let x: f32 = position.x.into();
         let y: f32 = position.y.into();
+        let origin_x: f32 = bounds.origin.x.into();
+        let origin_y: f32 = bounds.origin.y.into();
 
-        let adjusted_x = (x - padding).max(0.0);
-        let adjusted_y = (y - padding).max(0.0);
+        let relative_x = (x - origin_x).max(0.0);
+        let relative_y = (y - origin_y).max(0.0);
 
-        // Use round() like Zed does for more accurate mouse position mapping
-        let col = (adjusted_x / cell_width).round() as usize;
-        let row = (adjusted_y / cell_height).round() as usize;
+        // Use floor() for more intuitive selection behavior
+        // (clicking in the middle of a cell selects that cell)
+        let col = (relative_x / cell_width).floor() as usize;
+        let row = (relative_y / cell_height).floor() as usize;
 
         // Clamp to grid bounds
         let col = col.min((size.cols as usize).saturating_sub(1));
@@ -357,7 +414,7 @@ impl Render for TerminalView {
 
         // Scrollbar thumb position and size (as ratio 0.0 - 1.0)
         let thumb_height_ratio = if total_rows > 0 {
-            ((visible_rows as f32 / total_rows as f32)).max(0.1).min(1.0)
+            (visible_rows as f32 / total_rows as f32).max(0.1).min(1.0)
         } else {
             1.0
         };
@@ -404,6 +461,7 @@ impl Render for TerminalView {
                         self.terminal.clone(),
                         theme.clone(),
                         selection,
+                        self.shared_bounds.clone(),
                     )),
             );
 
@@ -433,10 +491,7 @@ impl Render for TerminalView {
                 )
         } else {
             // Empty placeholder to maintain layout
-            div()
-                .id("scrollbar-track")
-                .w(px(12.0))
-                .h_full()
+            div().id("scrollbar-track").w(px(12.0)).h_full()
         };
 
         container.child(scrollbar_track)
