@@ -1,4 +1,4 @@
-//! Build script for Axon Terminal
+//! Build script for zTerm
 //!
 //! Handles Windows-specific resource embedding (application icon).
 //! Automatically converts SVG logo to ICO format for Windows.
@@ -45,7 +45,7 @@ fn windows_build() {
     let mut res = winresource::WindowsResource::new();
 
     // Allow specifying RC toolkit path for environments with restricted security
-    if let Ok(toolkit_path) = std::env::var("AXON_RC_TOOLKIT_PATH") {
+    if let Ok(toolkit_path) = std::env::var("ZTERM_RC_TOOLKIT_PATH") {
         res.set_toolkit_path(&toolkit_path);
     }
 

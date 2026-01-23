@@ -1,4 +1,4 @@
-//! Axon Terminal - Main Application Entry
+//! zTerm - Main Application Entry
 //!
 //! A modern cross-platform terminal emulator built with Rust and GPUI.
 
@@ -11,16 +11,16 @@ mod settings;
 mod window;
 mod workspace;
 
-use app::AxonApp;
+use app::ZTermApp;
 
 fn main() -> Result<()> {
     // Initialize logging
-    axon_common::logging::init()?;
+    zterm_common::logging::init()?;
 
-    info!("Starting Axon Terminal");
+    info!("Starting zTerm");
 
     // Initialize configuration
-    if let Err(e) = axon_common::Config::init() {
+    if let Err(e) = zterm_common::Config::init() {
         tracing::warn!("Failed to load config, using defaults: {}", e);
     }
 
@@ -29,10 +29,10 @@ fn main() -> Result<()> {
 
     app.run(|cx| {
         // Set up application
-        AxonApp::init(cx);
+        ZTermApp::init(cx);
 
         // Open main window
-        AxonApp::open_main_window(cx);
+        ZTermApp::open_main_window(cx);
     });
 
     Ok(())

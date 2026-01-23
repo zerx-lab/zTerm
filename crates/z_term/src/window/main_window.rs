@@ -2,7 +2,7 @@
 
 use crate::app::{CloseActiveTab, NewTab, NextTab, PrevTab, Quit};
 use crate::workspace::Workspace;
-use axon_ui::{TabInfo, TitleBar, TitleBarEvent};
+use zterm_ui::{TabInfo, TitleBar, TitleBarEvent};
 use gpui::*;
 
 /// The main application window

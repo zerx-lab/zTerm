@@ -1,4 +1,4 @@
-# Cargo configuration for Axon Terminal
+# Cargo configuration for zTerm
 
 [build]
 # Use all available CPU cores

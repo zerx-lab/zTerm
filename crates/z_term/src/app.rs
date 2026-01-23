@@ -2,12 +2,12 @@
 
 use crate::window::MainWindow;
 use crate::workspace::Workspace;
-use axon_terminal::TerminalSize;
+use zterm_terminal::TerminalSize;
 use gpui::*;
 use gpui_component::theme::Theme;
 
 actions!(
-    axon_term,
+    zterm,
     [
         Quit,
         NewWindow,
@@ -25,9 +25,9 @@ actions!(
 );
 
 /// Main application state
-pub struct AxonApp;
+pub struct ZTermApp;
 
-impl AxonApp {
+impl ZTermApp {
     /// Initialize the application
     pub fn init(cx: &mut App) {
         // Initialize theme (required for gpui_component)
@@ -85,7 +85,7 @@ impl AxonApp {
 
     /// Open the main application window
     pub fn open_main_window(cx: &mut App) {
-        let config = axon_common::Config::global();
+        let config = zterm_common::Config::global();
 
         let window_options = WindowOptions {
             titlebar: None, // We use custom title bar
@@ -102,7 +102,7 @@ impl AxonApp {
             kind: WindowKind::Normal,
             is_movable: true,
             window_background: WindowBackgroundAppearance::Opaque,
-            app_id: Some("axon_term".to_string()),
+            app_id: Some("zterm".to_string()),
             window_min_size: Some(size(px(400.0), px(300.0))),
             window_decorations: Some(WindowDecorations::Client),
             ..Default::default()
