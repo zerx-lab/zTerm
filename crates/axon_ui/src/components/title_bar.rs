@@ -5,7 +5,6 @@
 
 use gpui::{prelude::*, *};
 use gpui_component::h_flex;
-use gpui_component::scroll::ScrollableElement;
 use std::path::Path;
 
 // Define simple actions for tab bar interactions
@@ -208,93 +207,68 @@ impl Render for TitleBar {
                     }
                 })
             })
-            // Content layout - tabs area (scrollable when there are many tabs)
+            // Content layout - tabs area with proper overflow handling
+            // Outer container: overflow_x_hidden to clip overflowing content
+            // Inner container: overflow_x_scroll for scrollable tabs
             .child(
-                h_flex()
+                div()
                     .flex_1()
                     .h_full()
-                    .items_center()
-                    .overflow_x_scrollbar()
-                    .px_2()
-                    .gap_1()
-                    .children(tabs.into_iter().map(|tab| {
-                        let tab_id = tab.id;
-                        let is_active = tab.active;
-                        let display_dir = tab.display_directory();
-
-                        // Colors inspired by modern terminals (Warp, iTerm2, Windows Terminal)
-                        let bg_color = if is_active {
-                            rgb(0x2d2d2d)
-                        } else {
-                            rgb(0x252525)
-                        };
-                        let text_color = if is_active {
-                            rgb(0xe8e8e8)
-                        } else {
-                            rgb(0x808080)
-                        };
-                        let hover_bg = if is_active {
-                            rgb(0x363636)
-                        } else {
-                            rgb(0x2d2d2d)
-                        };
-
-                        div()
-                            .id(ElementId::Name(format!("tab-{}", tab_id).into()))
-                            .flex()
-                            .flex_row()
-                            .flex_shrink_0()
+                    .overflow_x_hidden()
+                    .min_w_0() // Allow shrinking below content size
+                    .child(
+                        h_flex()
+                            .id("tabs-scroll-container")
+                            .h_full()
                             .items_center()
-                            .justify_between()
-                            .h(px(28.0))
-                            .min_w(TAB_MIN_WIDTH)
-                            .max_w(TAB_MAX_WIDTH)
-                            .px(px(10.0))
-                            .rounded_t_md()
-                            .bg(bg_color)
-                            // Active tab indicator - subtle bottom border
-                            .when(is_active, |el| el.border_b_2().border_color(rgb(0x4a9eff)))
-                            .when(!is_active, |el| el.border_b_1().border_color(rgb(0x3a3a3a)))
-                            .hover(|style| style.bg(hover_bg))
-                            .cursor_pointer()
-                            .occlude()
-                            .on_mouse_down(
-                                MouseButton::Left,
-                                |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
-                                    window.prevent_default();
-                                    cx.stop_propagation();
-                                },
-                            )
-                            .on_click(cx.listener(move |this, _: &ClickEvent, _window, cx| {
-                                this.on_select_tab(tab_id, cx);
-                            }))
-                            // Directory path - takes most space
-                            .child(
+                            .overflow_x_scroll()
+                            .px_2()
+                            .gap_1()
+                            .children(tabs.into_iter().map(|tab| {
+                                let tab_id = tab.id;
+                                let is_active = tab.active;
+                                let display_dir = tab.display_directory();
+
+                                // Colors inspired by modern terminals (Warp, iTerm2, Windows Terminal)
+                                let bg_color = if is_active {
+                                    rgb(0x2d2d2d)
+                                } else {
+                                    rgb(0x252525)
+                                };
+                                let text_color = if is_active {
+                                    rgb(0xe8e8e8)
+                                } else {
+                                    rgb(0x808080)
+                                };
+                                let hover_bg = if is_active {
+                                    rgb(0x363636)
+                                } else {
+                                    rgb(0x2d2d2d)
+                                };
+
                                 div()
-                                    .flex_1()
-                                    .text_sm()
-                                    .text_color(text_color)
-                                    .truncate()
-                                    .overflow_hidden()
-                                    .child(display_dir),
-                            )
-                            // Close button - compact and subtle
-                            .child(
-                                div()
-                                    .id(ElementId::Name(format!("close-tab-{}", tab_id).into()))
+                                    .id(ElementId::Name(format!("tab-{}", tab_id).into()))
                                     .flex()
+                                    .flex_row()
+                                    .flex_shrink_0() // Prevent tabs from shrinking
                                     .items_center()
-                                    .justify_center()
-                                    .w(px(18.0))
-                                    .h(px(18.0))
-                                    .ml(px(6.0))
-                                    .rounded(px(4.0))
-                                    .text_xs()
-                                    .text_color(rgb(0x606060))
-                                    .hover(|style| {
-                                        style.bg(rgb(0x4a4a4a)).text_color(rgb(0xd0d0d0))
+                                    .justify_between()
+                                    .h(px(28.0))
+                                    .min_w(TAB_MIN_WIDTH)
+                                    .max_w(TAB_MAX_WIDTH)
+                                    .px(px(10.0))
+                                    .rounded_t_md()
+                                    .bg(bg_color)
+                                    // Active tab indicator - subtle bottom border
+                                    .when(is_active, |el| {
+                                        el.border_b_2().border_color(rgb(0x4a9eff))
                                     })
-                                    .active(|style| style.bg(rgb(0x5a5a5a)))
+                                    .when(!is_active, |el| {
+                                        el.border_b_1().border_color(rgb(0x3a3a3a))
+                                    })
+                                    .hover(|style| style.bg(hover_bg))
+                                    .cursor_pointer()
+                                    .occlude()
                                     .on_mouse_down(
                                         MouseButton::Left,
                                         |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
@@ -302,53 +276,102 @@ impl Render for TitleBar {
                                             cx.stop_propagation();
                                         },
                                     )
-                                    .on_click(cx.listener(
-                                        move |this, _: &ClickEvent, _window, cx| {
-                                            cx.stop_propagation();
-                                            this.on_close_tab(tab_id, cx);
-                                        },
-                                    ))
-                                    .child("×"),
-                            )
-                    }))
-                    // New tab button - minimal style
-                    .child(
-                        div()
-                            .id("new-tab-button")
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .w(px(28.0))
-                            .h(px(28.0))
-                            .ml(px(4.0))
-                            .rounded(px(6.0))
-                            .text_color(rgb(0x606060))
-                            .hover(|style| style.bg(rgb(0x2d2d2d)).text_color(rgb(0xa0a0a0)))
-                            .active(|style| style.bg(rgb(0x3d3d3d)))
-                            .cursor_pointer()
-                            .occlude()
-                            .on_mouse_down(
-                                MouseButton::Left,
-                                |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
-                                    window.prevent_default();
-                                    cx.stop_propagation();
-                                },
-                            )
-                            .on_click(cx.listener(|this, _: &ClickEvent, _window, cx| {
-                                this.on_new_tab(cx);
+                                    .on_click(cx.listener(move |this, _: &ClickEvent, _window, cx| {
+                                        this.on_select_tab(tab_id, cx);
+                                    }))
+                                    // Directory path - takes most space
+                                    .child(
+                                        div()
+                                            .flex_1()
+                                            .text_sm()
+                                            .text_color(text_color)
+                                            .truncate()
+                                            .overflow_hidden()
+                                            .child(display_dir),
+                                    )
+                                    // Close button - compact and subtle
+                                    .child(
+                                        div()
+                                            .id(ElementId::Name(
+                                                format!("close-tab-{}", tab_id).into(),
+                                            ))
+                                            .flex()
+                                            .items_center()
+                                            .justify_center()
+                                            .w(px(18.0))
+                                            .h(px(18.0))
+                                            .ml(px(6.0))
+                                            .rounded(px(4.0))
+                                            .text_xs()
+                                            .text_color(rgb(0x606060))
+                                            .hover(|style| {
+                                                style.bg(rgb(0x4a4a4a)).text_color(rgb(0xd0d0d0))
+                                            })
+                                            .active(|style| style.bg(rgb(0x5a5a5a)))
+                                            .on_mouse_down(
+                                                MouseButton::Left,
+                                                |_: &MouseDownEvent,
+                                                 window: &mut Window,
+                                                 cx: &mut App| {
+                                                    window.prevent_default();
+                                                    cx.stop_propagation();
+                                                },
+                                            )
+                                            .on_click(cx.listener(
+                                                move |this, _: &ClickEvent, _window, cx| {
+                                                    cx.stop_propagation();
+                                                    this.on_close_tab(tab_id, cx);
+                                                },
+                                            ))
+                                            .child("×"),
+                                    )
                             }))
-                            .child("+"),
+                            // New tab button - minimal style, stays at end of tabs
+                            .child(
+                                div()
+                                    .id("new-tab-button")
+                                    .flex()
+                                    .flex_shrink_0() // Prevent button from shrinking
+                                    .items_center()
+                                    .justify_center()
+                                    .w(px(28.0))
+                                    .h(px(28.0))
+                                    .ml(px(4.0))
+                                    .rounded(px(6.0))
+                                    .text_color(rgb(0x606060))
+                                    .hover(|style| style.bg(rgb(0x2d2d2d)).text_color(rgb(0xa0a0a0)))
+                                    .active(|style| style.bg(rgb(0x3d3d3d)))
+                                    .cursor_pointer()
+                                    .occlude()
+                                    .on_mouse_down(
+                                        MouseButton::Left,
+                                        |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
+                                            window.prevent_default();
+                                            cx.stop_propagation();
+                                        },
+                                    )
+                                    .on_click(cx.listener(|this, _: &ClickEvent, _window, cx| {
+                                        this.on_new_tab(cx);
+                                    }))
+                                    .child("+"),
+                            ),
                     ),
             )
-            // Spacer
-            .child(div().flex_1())
-            // Window controls (right side)
+            // Window controls (right side) - protected from shrinking
             .when(
                 !is_fullscreen,
                 |title_bar: Stateful<Div>| match platform_style {
                     PlatformStyle::Mac => title_bar,
-                    PlatformStyle::Linux => title_bar.child(LinuxWindowControls::new()),
-                    PlatformStyle::Windows => title_bar.child(WindowsWindowControls::new(height)),
+                    PlatformStyle::Linux => title_bar.child(
+                        div()
+                            .flex_shrink_0() // Prevent window controls from being pushed out
+                            .child(LinuxWindowControls::new()),
+                    ),
+                    PlatformStyle::Windows => title_bar.child(
+                        div()
+                            .flex_shrink_0() // Prevent window controls from being pushed out
+                            .child(WindowsWindowControls::new(height)),
+                    ),
                 },
             )
     }
