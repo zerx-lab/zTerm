@@ -14,10 +14,13 @@ mod tab_info_tests {
             id: 1,
             title: "Terminal 1".to_string(),
             active: true,
+            shell_name: "pwsh".to_string(),
+            working_directory: "C:\\Users\\test".to_string(),
         };
         assert_eq!(tab.id, 1);
         assert_eq!(tab.title, "Terminal 1");
         assert!(tab.active);
+        assert_eq!(tab.shell_name, "pwsh");
     }
 
     #[test]
@@ -26,11 +29,14 @@ mod tab_info_tests {
             id: 2,
             title: "Terminal 2".to_string(),
             active: false,
+            shell_name: "bash".to_string(),
+            working_directory: "/home/user".to_string(),
         };
         let cloned = tab.clone();
         assert_eq!(tab.id, cloned.id);
         assert_eq!(tab.title, cloned.title);
         assert_eq!(tab.active, cloned.active);
+        assert_eq!(tab.working_directory, cloned.working_directory);
     }
 
     #[test]
@@ -39,6 +45,8 @@ mod tab_info_tests {
             id: 0,
             title: "Inactive Tab".to_string(),
             active: false,
+            shell_name: "zsh".to_string(),
+            working_directory: "~".to_string(),
         };
         assert!(!tab.active);
     }
@@ -49,8 +57,37 @@ mod tab_info_tests {
             id: 0,
             title: String::new(),
             active: true,
+            shell_name: "cmd".to_string(),
+            working_directory: "C:\\".to_string(),
         };
         assert!(tab.title.is_empty());
+    }
+
+    #[test]
+    fn test_display_directory_home() {
+        let tab = TabInfo {
+            id: 0,
+            title: "Test".to_string(),
+            active: true,
+            shell_name: "bash".to_string(),
+            working_directory: dirs::home_dir()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|| "~".to_string()),
+        };
+        assert_eq!(tab.display_directory(), "~");
+    }
+
+    #[test]
+    fn test_display_directory_subdir() {
+        let tab = TabInfo {
+            id: 0,
+            title: "Test".to_string(),
+            active: true,
+            shell_name: "bash".to_string(),
+            working_directory: "/some/path/to/project".to_string(),
+        };
+        // Should show the last component
+        assert_eq!(tab.display_directory(), "project");
     }
 }
 

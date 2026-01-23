@@ -4,6 +4,8 @@
 //! cross-platform window dragging support.
 
 use gpui::{prelude::*, *};
+use gpui_component::h_flex;
+use gpui_component::scroll::ScrollableElement;
 use std::path::Path;
 
 // Define simple actions for tab bar interactions
@@ -23,8 +25,11 @@ pub enum TitleBarEvent {
 /// Height of the title bar in pixels
 pub const TITLE_BAR_HEIGHT: Pixels = px(32.0);
 
-/// Fixed width for each tab
-const TAB_WIDTH: Pixels = px(160.0);
+/// Minimum width for each tab to ensure readability
+const TAB_MIN_WIDTH: Pixels = px(100.0);
+
+/// Maximum width for each tab to manage space efficiently
+const TAB_MAX_WIDTH: Pixels = px(200.0);
 
 /// Tab information for display in title bar
 #[derive(Clone)]
@@ -203,15 +208,13 @@ impl Render for TitleBar {
                     }
                 })
             })
-            // Content layout - tabs area (no occlude on container)
+            // Content layout - tabs area (scrollable when there are many tabs)
             .child(
-                div()
-                    .flex()
-                    .flex_row()
+                h_flex()
                     .flex_1()
                     .h_full()
                     .items_center()
-                    .overflow_x_hidden()
+                    .overflow_x_scrollbar()
                     .px_2()
                     .gap_1()
                     .children(tabs.into_iter().map(|tab| {
@@ -240,12 +243,12 @@ impl Render for TitleBar {
                             .id(ElementId::Name(format!("tab-{}", tab_id).into()))
                             .flex()
                             .flex_row()
+                            .flex_shrink_0()
                             .items_center()
                             .justify_between()
                             .h(px(28.0))
-                            .w(TAB_WIDTH)
-                            .min_w(TAB_WIDTH)
-                            .max_w(TAB_WIDTH)
+                            .min_w(TAB_MIN_WIDTH)
+                            .max_w(TAB_MAX_WIDTH)
                             .px(px(10.0))
                             .rounded_t_md()
                             .bg(bg_color)

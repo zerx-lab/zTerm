@@ -34,7 +34,10 @@ fn windows_build() {
 
     // Convert SVG to ICO
     if let Err(e) = svg_to_ico(svg_path, &ico_path) {
-        println!("cargo::warning=Failed to convert SVG to ICO: {}. Window icon will not be set.", e);
+        println!(
+            "cargo::warning=Failed to convert SVG to ICO: {}. Window icon will not be set.",
+            e
+        );
         return;
     }
 
@@ -63,7 +66,10 @@ fn windows_build() {
 }
 
 #[cfg(target_os = "windows")]
-fn svg_to_ico(svg_path: &std::path::Path, ico_path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+fn svg_to_ico(
+    svg_path: &std::path::Path,
+    ico_path: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error>> {
     use std::fs::File;
     use std::io::BufWriter;
 
@@ -81,8 +87,8 @@ fn svg_to_ico(svg_path: &std::path::Path, ico_path: &std::path::Path) -> Result<
 
     for size in sizes {
         // Create pixmap for this size
-        let mut pixmap = resvg::tiny_skia::Pixmap::new(size, size)
-            .ok_or("Failed to create pixmap")?;
+        let mut pixmap =
+            resvg::tiny_skia::Pixmap::new(size, size).ok_or("Failed to create pixmap")?;
 
         // Calculate scale to fit SVG into the target size
         let svg_size = tree.size();

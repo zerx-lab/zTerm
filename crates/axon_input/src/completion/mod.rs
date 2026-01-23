@@ -63,18 +63,23 @@ impl Completer for PathCompleter {
             input
         };
 
-        let (dir_path, prefix): (PathBuf, String) = if path_to_complete.contains('/') || path_to_complete.contains('\\') {
-            let path = PathBuf::from(path_to_complete);
-            if path_to_complete.ends_with('/') || path_to_complete.ends_with('\\') {
-                (path, String::new())
+        let (dir_path, prefix): (PathBuf, String) =
+            if path_to_complete.contains('/') || path_to_complete.contains('\\') {
+                let path = PathBuf::from(path_to_complete);
+                if path_to_complete.ends_with('/') || path_to_complete.ends_with('\\') {
+                    (path, String::new())
+                } else {
+                    let parent = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+                    let file_name = path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("")
+                        .to_string();
+                    (parent, file_name)
+                }
             } else {
-                let parent = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
-                let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
-                (parent, file_name)
-            }
-        } else {
-            (PathBuf::new(), path_to_complete.to_string())
-        };
+                (PathBuf::new(), path_to_complete.to_string())
+            };
 
         let search_dir = if dir_path.is_absolute() {
             dir_path

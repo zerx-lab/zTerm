@@ -4,6 +4,7 @@ use crate::window::MainWindow;
 use crate::workspace::Workspace;
 use axon_terminal::TerminalSize;
 use gpui::*;
+use gpui_component::theme::Theme;
 
 actions!(
     axon_term,
@@ -29,6 +30,9 @@ pub struct AxonApp;
 impl AxonApp {
     /// Initialize the application
     pub fn init(cx: &mut App) {
+        // Initialize theme (required for gpui_component)
+        cx.set_global(Theme::default());
+
         // Register actions
         Self::register_actions(cx);
 

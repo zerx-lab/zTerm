@@ -125,11 +125,14 @@ impl Render for MainWindow {
                 .map(|(i, tab)| {
                     let terminal = tab.terminal.read(cx);
                     let shell_name = terminal.shell_name();
+                    let working_directory =
+                        terminal.working_directory().to_string_lossy().to_string();
                     TabInfo {
                         id: i,
                         title: tab.title.clone(),
                         active: i == workspace.active_tab_index(),
                         shell_name,
+                        working_directory,
                     }
                 })
                 .collect();

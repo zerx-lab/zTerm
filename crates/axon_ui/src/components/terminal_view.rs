@@ -169,8 +169,10 @@ impl TerminalView {
 
         // Convert keystroke to terminal input
         if let Some(input) = self.keystroke_to_input(keystroke) {
-            // Auto-scroll to bottom when user types
-            self.scroll_to_bottom(cx);
+            // Auto-scroll to bottom when user types (only if not already at bottom)
+            if self.scroll_offset != 0 {
+                self.scroll_to_bottom(cx);
+            }
 
             self.terminal.update(cx, |terminal, _| {
                 terminal.write(input.as_bytes());
@@ -474,8 +476,10 @@ impl TerminalView {
     /// Commit (send) the given text to the PTY
     pub(crate) fn commit_text(&mut self, text: &str, cx: &mut Context<Self>) {
         if !text.is_empty() {
-            // Auto-scroll to bottom when user types
-            self.scroll_to_bottom(cx);
+            // Auto-scroll to bottom when user types (only if not already at bottom)
+            if self.scroll_offset != 0 {
+                self.scroll_to_bottom(cx);
+            }
 
             self.terminal.update(cx, |term, _| {
                 term.write_str(text);

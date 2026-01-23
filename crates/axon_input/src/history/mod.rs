@@ -77,7 +77,12 @@ impl History {
     }
 
     /// Add a command to history
-    pub fn add(&mut self, command: String, working_directory: Option<String>, exit_code: Option<i32>) {
+    pub fn add(
+        &mut self,
+        command: String,
+        working_directory: Option<String>,
+        exit_code: Option<i32>,
+    ) {
         // Don't add empty commands or duplicates of the last command
         if command.trim().is_empty() {
             return;

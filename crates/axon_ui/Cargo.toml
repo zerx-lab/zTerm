@@ -22,6 +22,7 @@ parking_lot.workspace = true
 unicode-width.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+dirs.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows.workspace = true

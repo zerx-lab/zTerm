@@ -311,6 +311,12 @@ impl Terminal {
     }
 
     /// Spawn event loop task that batches alacritty events (following Zed's pattern)
+    /// 
+    /// Optimization strategy:
+    /// - Process first event immediately for lowest latency
+    /// - Batch subsequent events within 4ms window to reduce UI updates
+    /// - Pre-allocate event buffer to avoid repeated allocations
+    /// - Coalesce multiple Wakeup events into one
     fn spawn_event_loop(
         mut events_rx: futures::channel::mpsc::UnboundedReceiver<AlacTermEvent>,
         cx: &mut Context<Self>,
@@ -318,6 +324,9 @@ impl Terminal {
         use futures::StreamExt;
 
         cx.spawn(async move |terminal, cx: &mut AsyncApp| {
+            // Pre-allocate buffer for batch events (reused across iterations)
+            let mut batch_buffer: Vec<AlacTermEvent> = Vec::with_capacity(64);
+            
             while let Some(event) = events_rx.next().await {
                 // Process first event immediately for lower latency
                 terminal.update(cx, |terminal, cx| {
@@ -326,47 +335,56 @@ impl Terminal {
 
                 // Batch subsequent events with 4ms timer (like Zed)
                 'batch: loop {
-                    let mut events = Vec::new();
+                    batch_buffer.clear();
                     let mut wakeup = false;
 
-                    let timer = futures::FutureExt::fuse(smol::Timer::after(Duration::from_millis(EVENT_BATCH_INTERVAL_MS)));
+                    let timer = futures::FutureExt::fuse(
+                        smol::Timer::after(Duration::from_millis(EVENT_BATCH_INTERVAL_MS))
+                    );
                     futures::pin_mut!(timer);
 
                     loop {
                         futures::select_biased! {
-                            _ = timer => break,
+                            // Check for events first (biased) before timer
                             event = events_rx.next() => {
                                 if let Some(event) = event {
                                     if matches!(event, AlacTermEvent::Wakeup) {
+                                        // Coalesce multiple wakeups
                                         wakeup = true;
                                     } else {
-                                        events.push(event);
+                                        batch_buffer.push(event);
                                     }
-                                    // Limit batch size
-                                    if events.len() > 100 {
+                                    // Limit batch size to prevent UI starvation
+                                    if batch_buffer.len() >= 100 {
                                         break;
                                     }
                                 } else {
+                                    // Channel closed
                                     break;
                                 }
                             }
+                            _ = timer => break,
                         }
                     }
 
-                    if events.is_empty() && !wakeup {
-                        smol::future::yield_now().await;
+                    // No events and no wakeup - exit batch loop immediately
+                    if batch_buffer.is_empty() && !wakeup {
                         break 'batch;
                     }
 
+                    // Process batched events
                     terminal.update(cx, |terminal, cx| {
+                        // Process wakeup first (triggers content sync)
                         if wakeup {
                             terminal.process_event(AlacTermEvent::Wakeup, cx);
                         }
-                        for event in events {
+                        // Then process other events
+                        for event in batch_buffer.drain(..) {
                             terminal.process_event(event, cx);
                         }
                     })?;
 
+                    // Yield to allow UI to update
                     smol::future::yield_now().await;
                 }
             }
@@ -409,37 +427,55 @@ impl Terminal {
     }
 
     /// Sync content from alacritty term for rendering
+    /// Optimized to minimize lock hold time and memory allocations
     fn sync_content(&mut self) {
-        let term = self.term.lock();
-        let content = term.renderable_content();
-
-        // Reuse existing Vec capacity
-        let (capacity_hint, _) = content.display_iter.size_hint();
+        // Take ownership of existing cells Vec to reuse its capacity
         let mut cells = std::mem::take(&mut self.last_content.cells);
         cells.clear();
-        if cells.capacity() < capacity_hint {
-            cells.reserve(capacity_hint - cells.capacity());
-        }
-
-        for ic in content.display_iter {
-            cells.push(IndexedCell {
-                point: ic.point,
-                cell: ic.cell.clone(),
-            });
-        }
-
-        let cursor_char = term.grid()[content.cursor.point].c;
-        let total_lines = term.grid().total_lines();
-        let screen_lines = term.grid().screen_lines();
-        let history_size = term.history_size();
+        
+        // Preserve terminal_bounds as it's set externally
         let terminal_bounds = self.last_content.terminal_bounds;
+
+        // Minimize lock scope - extract all needed data in one pass
+        let (mode, display_offset, selection, cursor, cursor_char, total_lines, screen_lines, history_size) = {
+            let term = self.term.lock();
+            let content = term.renderable_content();
+
+            // Pre-allocate if needed (only grow, never shrink)
+            let (capacity_hint, _) = content.display_iter.size_hint();
+            if cells.capacity() < capacity_hint {
+                cells.reserve(capacity_hint - cells.capacity());
+            }
+
+            // Collect cells while holding lock
+            for ic in content.display_iter {
+                cells.push(IndexedCell {
+                    point: ic.point,
+                    cell: ic.cell.clone(),
+                });
+            }
+
+            let cursor_char = term.grid()[content.cursor.point].c;
+            
+            (
+                content.mode,
+                content.display_offset,
+                content.selection,
+                content.cursor,
+                cursor_char,
+                term.grid().total_lines(),
+                term.grid().screen_lines(),
+                term.history_size(),
+            )
+            // Lock released here
+        };
 
         self.last_content = TerminalContent {
             cells,
-            mode: content.mode,
-            display_offset: content.display_offset,
-            selection: content.selection,
-            cursor: content.cursor,
+            mode,
+            display_offset,
+            selection,
+            cursor,
             cursor_char,
             terminal_bounds,
             total_lines,
@@ -449,20 +485,31 @@ impl Terminal {
     }
 
     /// Write data to PTY
+    /// Uses Cow::Owned since Msg::Input requires 'static lifetime
+    #[inline(always)]
     fn write_to_pty(&self, data: Vec<u8>) {
         if let Some(ref pty_tx) = self.pty_tx {
-            let _ = pty_tx.0.send(Msg::Input(data.into()));
+            let _ = pty_tx.0.send(Msg::Input(std::borrow::Cow::Owned(data)));
         }
     }
 
     /// Write data to the terminal (keyboard input)
+    #[inline(always)]
     pub fn write(&mut self, data: &[u8]) {
+        // For typical keyboard input (1-10 bytes), Vec allocation is minimal
         self.write_to_pty(data.to_vec());
     }
 
     /// Write a string to the terminal
+    #[inline(always)]
     pub fn write_str(&mut self, s: &str) {
-        self.write(s.as_bytes());
+        self.write_to_pty(s.as_bytes().to_vec());
+    }
+
+    /// Write owned bytes directly (avoids copy when caller already has Vec)
+    #[inline(always)]
+    pub fn write_owned(&mut self, data: Vec<u8>) {
+        self.write_to_pty(data);
     }
 
     /// Resize the terminal
