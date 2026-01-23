@@ -4,7 +4,6 @@
 //! cross-platform window dragging support.
 
 use gpui::{prelude::*, *};
-use tracing::info;
 
 /// Height of the title bar in pixels
 pub const TITLE_BAR_HEIGHT: Pixels = px(32.0);
@@ -81,8 +80,6 @@ impl Render for TitleBar {
         let is_mac = platform_style == PlatformStyle::Mac;
         let is_fullscreen = window.is_fullscreen();
         let height = Self::height();
-
-        info!("TitleBar::render called, platform={:?}, is_fullscreen={}", platform_style, is_fullscreen);
 
         // Main title bar container - follows Zed's h_flex() pattern exactly
         // window_control_area(Drag) tells Windows to return HTCAPTION for WM_NCHITTEST

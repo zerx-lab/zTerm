@@ -4,7 +4,6 @@ use crate::window::MainWindow;
 use crate::workspace::Workspace;
 use axon_terminal::TerminalSize;
 use gpui::*;
-use tracing::info;
 
 actions!(
     axon_term,
@@ -30,13 +29,19 @@ pub struct AxonApp;
 impl AxonApp {
     /// Initialize the application
     pub fn init(cx: &mut App) {
-        info!("Initializing Axon Terminal application");
-
         // Register actions
         Self::register_actions(cx);
 
         // Set up global key bindings
         Self::setup_keybindings(cx);
+
+        // Handle window close - quit when last window is closed
+        cx.on_window_closed(|cx| {
+            if cx.windows().is_empty() {
+                cx.quit();
+            }
+        })
+        .detach();
     }
 
     /// Register global actions
@@ -97,7 +102,5 @@ impl AxonApp {
             cx.new(|cx| MainWindow::new(workspace, cx))
         })
         .unwrap();
-
-        info!("Main window opened");
     }
 }

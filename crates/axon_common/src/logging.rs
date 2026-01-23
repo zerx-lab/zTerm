@@ -17,8 +17,6 @@ pub fn init() -> Result<()> {
         .with(fmt::layer().with_target(true))
         .init();
 
-    tracing::info!("Axon Terminal logging initialized");
-
     Ok(())
 }
 
