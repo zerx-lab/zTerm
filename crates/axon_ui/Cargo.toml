@@ -28,3 +28,8 @@ dirs.workspace = true
 windows.workspace = true
 
 [dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "ui_benchmarks"
+harness = false
