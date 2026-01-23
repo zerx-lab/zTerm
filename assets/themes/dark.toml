@@ -1,0 +1,33 @@
+# Axon Terminal - Dark Theme
+
+[colors]
+background = "#1a1a1a"
+foreground = "#e0e0e0"
+cursor = "#00ff00"
+selection_background = "#3d3d3d"
+
+# ANSI colors
+[colors.normal]
+black = "#1a1a1a"
+red = "#f44747"
+green = "#6a9955"
+yellow = "#d7ba7d"
+blue = "#569cd6"
+magenta = "#c586c0"
+cyan = "#4ec9b0"
+white = "#d4d4d4"
+
+[colors.bright]
+black = "#808080"
+red = "#f44747"
+green = "#6a9955"
+yellow = "#d7ba7d"
+blue = "#569cd6"
+magenta = "#c586c0"
+cyan = "#4ec9b0"
+white = "#ffffff"
+
+[font]
+family = "JetBrains Mono"
+size = 14.0
+line_height = 1.4

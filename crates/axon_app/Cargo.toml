@@ -1,0 +1,41 @@
+[package]
+name = "axon_app"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Main application for Axon Terminal"
+
+[[bin]]
+name = "axon_term"
+path = "src/main.rs"
+
+[dependencies]
+axon_common.workspace = true
+axon_terminal.workspace = true
+axon_ui.workspace = true
+axon_input.workspace = true
+
+# GPUI
+gpui.workspace = true
+gpui-component.workspace = true
+
+# Async
+smol.workspace = true
+futures.workspace = true
+
+# Utilities
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+parking_lot.workspace = true
+dirs.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
+
+[dev-dependencies]
+
+[features]
+default = []

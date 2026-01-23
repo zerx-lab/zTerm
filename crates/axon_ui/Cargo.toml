@@ -1,0 +1,24 @@
+[package]
+name = "axon_ui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "UI components for Axon Terminal"
+
+[dependencies]
+axon_common.workspace = true
+axon_terminal.workspace = true
+
+# GPUI
+gpui.workspace = true
+gpui-component.workspace = true
+
+# Utilities
+anyhow.workspace = true
+tracing.workspace = true
+parking_lot.workspace = true
+unicode-width.workspace = true
+
+[dev-dependencies]
