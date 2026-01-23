@@ -1,8 +1,8 @@
-# Axon Terminal - AI 项目记忆
+# zTerm- AI 项目记忆
 
 ## 项目概述
 
-Axon Terminal 是一个使用 Rust + GPUI 框架构建的现代跨平台终端工具。目标是打造一个类似 Warp Terminal 的产品，具有优秀的 UI 设计和卓越的性能表现。
+zTerm 是一个使用 Rust + GPUI 框架构建的现代跨平台终端工具。目标是打造一个类似 Warp Terminal 的产品，具有优秀的 UI 设计和卓越的性能表现。
 
 ## 技术栈
 

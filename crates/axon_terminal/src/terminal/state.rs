@@ -1,13 +1,30 @@
-//! Terminal state and entity management
+//! Terminal state and entity management using alacritty_terminal
+//!
+//! This module follows Zed's terminal architecture:
+//! - Uses alacritty's EventLoop for PTY I/O (runs in background thread)
+//! - Batches events with 4ms timer to reduce UI updates
+//! - Syncs content only on Wakeup events
 
-use crate::buffer::Grid;
-use crate::parser::AnsiParser;
-use crate::platform::{Pty, PtyConfig};
 use crate::TerminalEvent;
-use axon_common::Result;
-use gpui::{AsyncApp, Context, EventEmitter, Task, WeakEntity};
+use alacritty_terminal::event::{Event as AlacTermEvent, EventListener, WindowSize};
+use alacritty_terminal::event_loop::{EventLoop, Msg, Notifier};
+use alacritty_terminal::grid::Dimensions;
+use alacritty_terminal::index::{Column, Line, Point as AlacPoint};
+use alacritty_terminal::selection::SelectionRange;
+use alacritty_terminal::sync::FairMutex;
+use alacritty_terminal::term::cell::Cell;
+use alacritty_terminal::term::{Config, RenderableCursor, TermMode};
+use alacritty_terminal::tty;
+use alacritty_terminal::Term;
+use gpui::{AsyncApp, Bounds, Context, EventEmitter, Pixels, Size, Task, px};
+use std::collections::HashMap;
 use std::path::PathBuf;
-use tracing::{debug, error, info};
+use std::sync::Arc;
+use std::time::Duration;
+use tracing::{error, info};
+
+/// Event batching interval in milliseconds (following Zed's approach)
+const EVENT_BATCH_INTERVAL_MS: u64 = 4;
 
 /// Terminal size in characters
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,16 +39,132 @@ impl Default for TerminalSize {
     }
 }
 
-/// The main Terminal entity
+/// Terminal bounds with cell dimensions
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TerminalBounds {
+    pub cell_width: Pixels,
+    pub line_height: Pixels,
+    pub bounds: Bounds<Pixels>,
+}
+
+impl Default for TerminalBounds {
+    fn default() -> Self {
+        Self {
+            cell_width: px(8.0),
+            line_height: px(16.0),
+            bounds: Bounds {
+                origin: gpui::Point::default(),
+                size: Size {
+                    width: px(640.0),
+                    height: px(480.0),
+                },
+            },
+        }
+    }
+}
+
+impl TerminalBounds {
+    pub fn new(line_height: Pixels, cell_width: Pixels, bounds: Bounds<Pixels>) -> Self {
+        Self {
+            cell_width,
+            line_height,
+            bounds,
+        }
+    }
+
+    pub fn num_lines(&self) -> usize {
+        (self.bounds.size.height / self.line_height).floor() as usize
+    }
+
+    pub fn num_columns(&self) -> usize {
+        (self.bounds.size.width / self.cell_width).floor() as usize
+    }
+}
+
+impl Dimensions for TerminalBounds {
+    fn total_lines(&self) -> usize {
+        self.screen_lines()
+    }
+
+    fn screen_lines(&self) -> usize {
+        self.num_lines()
+    }
+
+    fn columns(&self) -> usize {
+        self.num_columns()
+    }
+}
+
+impl From<TerminalBounds> for WindowSize {
+    fn from(val: TerminalBounds) -> Self {
+        WindowSize {
+            num_lines: val.num_lines() as u16,
+            num_cols: val.num_columns() as u16,
+            cell_width: f32::from(val.cell_width) as u16,
+            cell_height: f32::from(val.line_height) as u16,
+        }
+    }
+}
+
+/// Event listener for alacritty terminal (sends events to our channel)
+#[derive(Clone)]
+pub struct TerminalEventListener(pub futures::channel::mpsc::UnboundedSender<AlacTermEvent>);
+
+impl EventListener for TerminalEventListener {
+    fn send_event(&self, event: AlacTermEvent) {
+        let _ = self.0.unbounded_send(event);
+    }
+}
+
+/// An indexed cell from the terminal grid
+#[derive(Debug, Clone)]
+pub struct IndexedCell {
+    pub point: AlacPoint,
+    pub cell: Cell,
+}
+
+/// Terminal content for rendering
+#[derive(Clone)]
+pub struct TerminalContent {
+    pub cells: Vec<IndexedCell>,
+    pub mode: TermMode,
+    pub display_offset: usize,
+    pub selection: Option<SelectionRange>,
+    pub cursor: RenderableCursor,
+    pub cursor_char: char,
+    pub terminal_bounds: TerminalBounds,
+    pub total_lines: usize,
+    pub screen_lines: usize,
+    pub history_size: usize,
+}
+
+impl Default for TerminalContent {
+    fn default() -> Self {
+        Self {
+            cells: Vec::new(),
+            mode: TermMode::empty(),
+            display_offset: 0,
+            selection: None,
+            cursor: RenderableCursor {
+                shape: alacritty_terminal::vte::ansi::CursorShape::Block,
+                point: AlacPoint::new(Line(0), Column(0)),
+            },
+            cursor_char: ' ',
+            terminal_bounds: TerminalBounds::default(),
+            total_lines: 24,
+            screen_lines: 24,
+            history_size: 0,
+        }
+    }
+}
+
+/// The main Terminal entity using alacritty_terminal with EventLoop
 pub struct Terminal {
-    /// PTY handle
-    pty: Option<Pty>,
+    /// Alacritty terminal emulator (shared with EventLoop)
+    term: Arc<FairMutex<Term<TerminalEventListener>>>,
 
-    /// Screen buffer
-    grid: Grid,
-
-    /// ANSI parser
-    parser: AnsiParser,
+    /// PTY notifier for sending data to PTY
+    pty_tx: Option<Notifier>,
 
     /// Current size
     size: TerminalSize,
@@ -45,8 +178,11 @@ pub struct Terminal {
     /// Whether the process has exited
     exited: bool,
 
-    /// Reader task handle
-    _reader_task: Option<Task<()>>,
+    /// Last rendered content (cached for performance)
+    last_content: TerminalContent,
+
+    /// Event loop task (processes alacritty events)
+    _event_loop_task: Task<anyhow::Result<()>>,
 }
 
 impl EventEmitter<TerminalEvent> for Terminal {}
@@ -63,97 +199,269 @@ impl Terminal {
             .or_else(dirs::home_dir)
             .unwrap_or_else(|| PathBuf::from("."));
 
-        let grid = Grid::new(size.cols as usize, size.rows as usize);
-        let parser = AnsiParser::new();
+        // Create event channel for alacritty events
+        let (events_tx, events_rx) = futures::channel::mpsc::unbounded();
+        let listener = TerminalEventListener(events_tx.clone());
 
-        let mut terminal = Self {
-            pty: None,
-            grid,
-            parser,
-            size,
-            working_directory: working_directory.clone(),
-            title: "Axon Terminal".to_string(),
-            exited: false,
-            _reader_task: None,
+        // Create terminal config
+        let config = Config {
+            scrolling_history: 10000,
+            ..Config::default()
         };
 
-        // Spawn the PTY
-        if let Err(e) = terminal.spawn_pty(shell, working_directory, cx) {
-            error!("Failed to spawn PTY: {}", e);
-            cx.emit(TerminalEvent::Error(format!("Failed to spawn PTY: {}", e)));
-        }
+        // Create terminal bounds
+        let bounds = TerminalBounds::default();
 
-        terminal
-    }
+        // Create alacritty terminal
+        let term = Term::new(config, &bounds, listener.clone());
+        let term = Arc::new(FairMutex::new(term));
 
-    /// Spawn the PTY process
-    fn spawn_pty(
-        &mut self,
-        shell: Option<String>,
-        working_directory: PathBuf,
-        cx: &mut Context<Self>,
-    ) -> Result<()> {
-        let config = PtyConfig {
-            shell,
-            working_directory: Some(working_directory),
-            cols: self.size.cols,
-            rows: self.size.rows,
-            env: vec![],
-        };
-
-        let pty = Pty::new(config)?;
-
-        // Set up the reader task
-        let reader = pty.reader();
-        let reader_task = cx.spawn(async move |this: WeakEntity<Terminal>, cx: &mut AsyncApp| {
-            loop {
-                match reader.recv_async().await {
-                    Ok(data) => {
-                        let result = this.update(cx, |terminal, cx| {
-                            terminal.process_output(&data, cx);
-                        });
-                        if result.is_err() {
-                            break;
-                        }
-                    }
-                    Err(_) => {
-                        debug!("PTY reader channel closed");
-                        let _ = this.update(cx, |terminal, cx| {
-                            terminal.exited = true;
-                            cx.emit(TerminalEvent::ProcessExited { exit_code: None });
-                        });
-                        break;
-                    }
-                }
+        // Setup PTY options
+        let shell_program = shell.clone().unwrap_or_else(|| {
+            #[cfg(windows)]
+            {
+                std::env::var("COMSPEC").unwrap_or_else(|_| "powershell.exe".to_string())
+            }
+            #[cfg(not(windows))]
+            {
+                std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
             }
         });
 
-        self.pty = Some(pty);
-        self._reader_task = Some(reader_task);
+        let alac_shell = tty::Shell::new(shell_program, vec![]);
+        let mut env: HashMap<String, String> = std::env::vars().collect();
+        env.insert("TERM".to_string(), "xterm-256color".to_string());
+        env.insert("COLORTERM".to_string(), "truecolor".to_string());
 
-        info!("PTY spawned successfully");
-        Ok(())
+        let pty_options = tty::Options {
+            shell: Some(alac_shell),
+            working_directory: Some(working_directory.clone()),
+            drain_on_exit: true,
+            env: env.into_iter().collect(),
+            #[cfg(windows)]
+            escape_args: false,
+        };
+
+        // Create PTY using alacritty's tty module
+        let pty = match tty::new(&pty_options, bounds.into(), 0) {
+            Ok(pty) => pty,
+            Err(e) => {
+                error!("Failed to create PTY: {}", e);
+                cx.emit(TerminalEvent::Error(format!("Failed to create PTY: {}", e)));
+                // Return a dummy terminal that will show error
+                return Self::create_error_terminal(working_directory, size, cx);
+            }
+        };
+
+        // Create EventLoop (this handles PTY I/O in background thread)
+        let event_loop = match EventLoop::new(
+            term.clone(),
+            listener,
+            pty,
+            pty_options.drain_on_exit,
+            false,
+        ) {
+            Ok(el) => el,
+            Err(e) => {
+                error!("Failed to create event loop: {}", e);
+                cx.emit(TerminalEvent::Error(format!("Failed to create event loop: {}", e)));
+                return Self::create_error_terminal(working_directory, size, cx);
+            }
+        };
+
+        let pty_tx = Notifier(event_loop.channel());
+        let _io_thread = event_loop.spawn(); // Spawns background I/O thread
+
+        info!("Terminal created with alacritty EventLoop");
+
+        // Create event processing task (batches events like Zed does)
+        let event_loop_task = Self::spawn_event_loop(events_rx, cx);
+
+        Self {
+            term,
+            pty_tx: Some(pty_tx),
+            size,
+            working_directory,
+            title: "Axon Terminal".to_string(),
+            exited: false,
+            last_content: TerminalContent::default(),
+            _event_loop_task: event_loop_task,
+        }
     }
 
-    /// Process output from the PTY
-    fn process_output(&mut self, data: &[u8], cx: &mut Context<Self>) {
-        debug!("Processing PTY output: {} bytes", data.len());
+    /// Create an error terminal (when PTY creation fails)
+    fn create_error_terminal(
+        working_directory: PathBuf,
+        size: TerminalSize,
+        _cx: &mut Context<Self>,
+    ) -> Self {
+        let (events_tx, _) = futures::channel::mpsc::unbounded();
+        let listener = TerminalEventListener(events_tx);
+        let config = Config::default();
+        let bounds = TerminalBounds::default();
+        let term = Term::new(config, &bounds, listener);
+        let term = Arc::new(FairMutex::new(term));
 
-        // Parse VT sequences and update grid
-        self.parser.process(data, &mut self.grid);
+        Self {
+            term,
+            pty_tx: None, // No PTY for error terminal
+            size,
+            working_directory,
+            title: "Error".to_string(),
+            exited: true,
+            last_content: TerminalContent::default(),
+            _event_loop_task: Task::ready(Ok(())),
+        }
+    }
 
-        // Emit the output event
-        cx.emit(TerminalEvent::Output(data.to_vec()));
-        cx.notify();
+    /// Spawn event loop task that batches alacritty events (following Zed's pattern)
+    fn spawn_event_loop(
+        mut events_rx: futures::channel::mpsc::UnboundedReceiver<AlacTermEvent>,
+        cx: &mut Context<Self>,
+    ) -> Task<anyhow::Result<()>> {
+        use futures::StreamExt;
+
+        cx.spawn(async move |terminal, cx: &mut AsyncApp| {
+            while let Some(event) = events_rx.next().await {
+                // Process first event immediately for lower latency
+                terminal.update(cx, |terminal, cx| {
+                    terminal.process_event(event, cx);
+                })?;
+
+                // Batch subsequent events with 4ms timer (like Zed)
+                'batch: loop {
+                    let mut events = Vec::new();
+                    let mut wakeup = false;
+
+                    let timer = futures::FutureExt::fuse(smol::Timer::after(Duration::from_millis(EVENT_BATCH_INTERVAL_MS)));
+                    futures::pin_mut!(timer);
+
+                    loop {
+                        futures::select_biased! {
+                            _ = timer => break,
+                            event = events_rx.next() => {
+                                if let Some(event) = event {
+                                    if matches!(event, AlacTermEvent::Wakeup) {
+                                        wakeup = true;
+                                    } else {
+                                        events.push(event);
+                                    }
+                                    // Limit batch size
+                                    if events.len() > 100 {
+                                        break;
+                                    }
+                                } else {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if events.is_empty() && !wakeup {
+                        smol::future::yield_now().await;
+                        break 'batch;
+                    }
+
+                    terminal.update(cx, |terminal, cx| {
+                        if wakeup {
+                            terminal.process_event(AlacTermEvent::Wakeup, cx);
+                        }
+                        for event in events {
+                            terminal.process_event(event, cx);
+                        }
+                    })?;
+
+                    smol::future::yield_now().await;
+                }
+            }
+
+            anyhow::Ok(())
+        })
+    }
+
+    /// Process alacritty terminal event
+    fn process_event(&mut self, event: AlacTermEvent, cx: &mut Context<Self>) {
+        match event {
+            AlacTermEvent::Wakeup => {
+                // Sync content and notify UI (main update path)
+                self.sync_content();
+                cx.notify();
+            }
+            AlacTermEvent::Title(title) => {
+                self.title = title.clone();
+                cx.emit(TerminalEvent::TitleChanged(title));
+            }
+            AlacTermEvent::Bell => {
+                // TODO: Handle bell
+            }
+            AlacTermEvent::Exit => {
+                self.exited = true;
+                cx.emit(TerminalEvent::ProcessExited { exit_code: None });
+            }
+            AlacTermEvent::ChildExit(code) => {
+                self.exited = true;
+                cx.emit(TerminalEvent::ProcessExited { exit_code: Some(code) });
+            }
+            AlacTermEvent::PtyWrite(data) => {
+                self.write_to_pty(data.into_bytes());
+            }
+            AlacTermEvent::ClipboardStore(_, _) | AlacTermEvent::ClipboardLoad(_, _) => {
+                // TODO: Handle clipboard
+            }
+            _ => {}
+        }
+    }
+
+    /// Sync content from alacritty term for rendering
+    fn sync_content(&mut self) {
+        let term = self.term.lock();
+        let content = term.renderable_content();
+
+        // Reuse existing Vec capacity
+        let (capacity_hint, _) = content.display_iter.size_hint();
+        let mut cells = std::mem::take(&mut self.last_content.cells);
+        cells.clear();
+        if cells.capacity() < capacity_hint {
+            cells.reserve(capacity_hint - cells.capacity());
+        }
+
+        for ic in content.display_iter {
+            cells.push(IndexedCell {
+                point: ic.point,
+                cell: ic.cell.clone(),
+            });
+        }
+
+        let cursor_char = term.grid()[content.cursor.point].c;
+        let total_lines = term.grid().total_lines();
+        let screen_lines = term.grid().screen_lines();
+        let history_size = term.history_size();
+        let terminal_bounds = self.last_content.terminal_bounds;
+
+        self.last_content = TerminalContent {
+            cells,
+            mode: content.mode,
+            display_offset: content.display_offset,
+            selection: content.selection,
+            cursor: content.cursor,
+            cursor_char,
+            terminal_bounds,
+            total_lines,
+            screen_lines,
+            history_size,
+        };
+    }
+
+    /// Write data to PTY
+    fn write_to_pty(&self, data: Vec<u8>) {
+        if let Some(ref pty_tx) = self.pty_tx {
+            let _ = pty_tx.0.send(Msg::Input(data.into()));
+        }
     }
 
     /// Write data to the terminal (keyboard input)
     pub fn write(&mut self, data: &[u8]) {
-        if let Some(pty) = &self.pty {
-            if let Err(e) = pty.write(data) {
-                error!("Failed to write to PTY: {}", e);
-            }
-        }
+        self.write_to_pty(data.to_vec());
     }
 
     /// Write a string to the terminal
@@ -168,12 +476,29 @@ impl Terminal {
         }
 
         self.size = size;
-        self.grid.resize(size.cols as usize, size.rows as usize);
 
-        if let Some(pty) = &self.pty {
-            if let Err(e) = pty.resize(size.cols, size.rows) {
-                error!("Failed to resize PTY: {}", e);
-            }
+        // Create new bounds
+        let bounds = TerminalBounds {
+            cell_width: self.last_content.terminal_bounds.cell_width,
+            line_height: self.last_content.terminal_bounds.line_height,
+            bounds: Bounds {
+                origin: self.last_content.terminal_bounds.bounds.origin,
+                size: Size {
+                    width: self.last_content.terminal_bounds.cell_width * size.cols as f32,
+                    height: self.last_content.terminal_bounds.line_height * size.rows as f32,
+                },
+            },
+        };
+
+        // Resize alacritty term
+        {
+            let mut term = self.term.lock();
+            term.resize(bounds);
+        }
+
+        // Notify PTY of resize
+        if let Some(ref pty_tx) = self.pty_tx {
+            let _ = pty_tx.0.send(Msg::Resize(bounds.into()));
         }
 
         cx.emit(TerminalEvent::Resized {
@@ -183,9 +508,35 @@ impl Terminal {
         cx.notify();
     }
 
-    /// Get the current grid
-    pub fn grid(&self) -> &Grid {
-        &self.grid
+    /// Set terminal bounds (for rendering calculations)
+    pub fn set_bounds(&mut self, bounds: TerminalBounds) {
+        self.last_content.terminal_bounds = bounds;
+
+        let cols = bounds.num_columns() as u16;
+        let rows = bounds.num_lines() as u16;
+
+        if cols > 0 && rows > 0 && (cols != self.size.cols || rows != self.size.rows) {
+            self.size = TerminalSize { cols, rows };
+
+            {
+                let mut term = self.term.lock();
+                term.resize(bounds);
+            }
+
+            if let Some(ref pty_tx) = self.pty_tx {
+                let _ = pty_tx.0.send(Msg::Resize(bounds.into()));
+            }
+        }
+    }
+
+    /// Get the last rendered content
+    pub fn content(&self) -> &TerminalContent {
+        &self.last_content
+    }
+
+    /// Get the alacritty term (for advanced operations)
+    pub fn term(&self) -> &Arc<FairMutex<Term<TerminalEventListener>>> {
+        &self.term
     }
 
     /// Get the current size
@@ -213,5 +564,37 @@ impl Terminal {
     /// Get the working directory
     pub fn working_directory(&self) -> &PathBuf {
         &self.working_directory
+    }
+
+    /// Scroll the terminal
+    pub fn scroll(&mut self, delta: i32) {
+        let mut term = self.term.lock();
+        term.scroll_display(alacritty_terminal::grid::Scroll::Delta(delta));
+        drop(term);
+        self.sync_content();
+    }
+
+    /// Get selection text
+    pub fn selection_text(&self) -> Option<String> {
+        let term = self.term.lock();
+        term.selection_to_string()
+    }
+
+    /// Clear selection
+    pub fn clear_selection(&mut self) {
+        let mut term = self.term.lock();
+        term.selection = None;
+        drop(term);
+        self.sync_content();
+    }
+
+    /// Check if terminal mode includes mouse reporting
+    pub fn mouse_mode(&self) -> bool {
+        self.last_content.mode.intersects(TermMode::MOUSE_MODE)
+    }
+
+    /// Check if in alternate screen mode
+    pub fn alternate_screen(&self) -> bool {
+        self.last_content.mode.contains(TermMode::ALT_SCREEN)
     }
 }

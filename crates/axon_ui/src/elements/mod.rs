@@ -2,4 +2,4 @@
 
 mod terminal_element;
 
-pub use terminal_element::TerminalElement;
+pub use terminal_element::{Selection, TerminalElement};

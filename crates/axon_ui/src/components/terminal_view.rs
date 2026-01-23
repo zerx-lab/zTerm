@@ -1,10 +1,21 @@
 //! Terminal view component
 
-use crate::elements::TerminalElement;
+use crate::elements::{Selection, TerminalElement};
 use crate::theme::TerminalTheme;
 use axon_terminal::{Terminal, TerminalEvent};
 use gpui::*;
-use tracing::debug;
+
+/// Terminal font family (must match main_window.rs)
+const TERMINAL_FONT_FAMILY: &str = "Consolas";
+/// Terminal font size (must match main_window.rs)
+const TERMINAL_FONT_SIZE: f32 = 14.0;
+
+/// Position in terminal grid (column, row)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GridPosition {
+    pub col: usize,
+    pub row: usize,
+}
 
 /// The main terminal view component
 pub struct TerminalView {
@@ -14,17 +25,36 @@ pub struct TerminalView {
     /// Focus handle for keyboard input
     focus_handle: FocusHandle,
 
-    /// Current scroll offset (in pixels)
-    scroll_offset: f32,
+    /// Current scroll offset (in lines from bottom, 0 = at bottom)
+    scroll_offset: usize,
 
     /// Terminal theme
     theme: TerminalTheme,
+
+    /// Selection start position (if selecting)
+    selection_start: Option<GridPosition>,
+
+    /// Selection end position (if selecting)
+    selection_end: Option<GridPosition>,
+
+    /// Whether we are currently dragging to select
+    is_selecting: bool,
+
+    /// Cached cell width (measured from text system)
+    cell_width: Option<Pixels>,
+
+    /// Cached cell height
+    cell_height: Pixels,
 }
 
 impl TerminalView {
     /// Create a new terminal view
     pub fn new(terminal: Entity<Terminal>, cx: &mut Context<Self>) -> Self {
         let focus_handle = cx.focus_handle();
+        let theme = TerminalTheme::default();
+
+        // Cell height is calculated from theme
+        let cell_height = px(theme.font_size * theme.line_height);
 
         // Subscribe to terminal events
         cx.subscribe(&terminal, Self::on_terminal_event).detach();
@@ -32,9 +62,40 @@ impl TerminalView {
         Self {
             terminal,
             focus_handle,
-            scroll_offset: 0.0,
-            theme: TerminalTheme::default(),
+            scroll_offset: 0,
+            theme,
+            selection_start: None,
+            selection_end: None,
+            is_selecting: false,
+            cell_width: None, // Will be measured on first use
+            cell_height,
         }
+    }
+
+    /// Measure cell width using the text system
+    fn measure_cell_width(&mut self, cx: &App) -> Pixels {
+        if let Some(width) = self.cell_width {
+            return width;
+        }
+
+        let text_system = cx.text_system();
+        let font = Font {
+            family: TERMINAL_FONT_FAMILY.into(),
+            ..Default::default()
+        };
+
+        let font_size = px(TERMINAL_FONT_SIZE);
+        let font_id = text_system.resolve_font(&font);
+
+        if let Ok(advance) = text_system.advance(font_id, font_size, 'm') {
+            self.cell_width = Some(advance.width);
+            return advance.width;
+        }
+
+        // Fallback to estimated width
+        let fallback = px(TERMINAL_FONT_SIZE * 0.6);
+        self.cell_width = Some(fallback);
+        fallback
     }
 
     /// Handle terminal events
@@ -45,19 +106,10 @@ impl TerminalView {
         cx: &mut Context<Self>,
     ) {
         match event {
-            TerminalEvent::Output(_) => {
+            TerminalEvent::TitleChanged(_) | TerminalEvent::Resized { .. } => {
                 cx.notify();
             }
-            TerminalEvent::TitleChanged(title) => {
-                debug!("Terminal title changed: {}", title);
-                cx.notify();
-            }
-            TerminalEvent::Resized { cols, rows } => {
-                debug!("Terminal resized: {}x{}", cols, rows);
-                cx.notify();
-            }
-            TerminalEvent::ProcessExited { exit_code } => {
-                debug!("Terminal process exited with code: {:?}", exit_code);
+            TerminalEvent::ProcessExited { .. } => {
                 cx.notify();
             }
             _ => {}
@@ -67,11 +119,9 @@ impl TerminalView {
     /// Handle key down events
     fn on_key_down(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
         let keystroke = &event.keystroke;
-        debug!("Key down: {:?}", keystroke.key);
 
         // Convert keystroke to terminal input
         if let Some(input) = self.keystroke_to_input(keystroke) {
-            debug!("Sending input to terminal: {:?}", input);
             self.terminal.update(cx, |terminal, _| {
                 terminal.write(input.as_bytes());
             });
@@ -131,17 +181,147 @@ impl TerminalView {
 
     /// Handle scroll wheel events
     fn on_scroll(&mut self, event: &ScrollWheelEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        let delta = match event.delta {
-            ScrollDelta::Lines(lines) => lines.y * 20.0,
-            ScrollDelta::Pixels(pixels) => pixels.y.into(),
+        // Calculate scroll delta in lines
+        let line_delta: i32 = match event.delta {
+            ScrollDelta::Lines(lines) => lines.y as i32,
+            ScrollDelta::Pixels(pixels) => {
+                let line_height = self.theme.font_size * self.theme.line_height;
+                let delta_f32: f32 = pixels.y.into();
+                (delta_f32 / line_height) as i32
+            }
         };
-        self.scroll_offset = (self.scroll_offset - delta).max(0.0);
+
+        // Get max scroll from terminal content
+        let max_scroll = {
+            let terminal = self.terminal.read(cx);
+            terminal.content().history_size
+        };
+
+        // Scrolling up (positive delta) increases offset, scrolling down decreases
+        let new_offset = if line_delta > 0 {
+            self.scroll_offset.saturating_add(line_delta as usize)
+        } else {
+            self.scroll_offset.saturating_sub((-line_delta) as usize)
+        };
+
+        self.scroll_offset = new_offset.min(max_scroll);
+
+        // Update terminal scroll
+        self.terminal.update(cx, |terminal, _| {
+            terminal.scroll(line_delta);
+        });
+
         cx.notify();
     }
 
-    /// Handle mouse down for focus
-    fn on_mouse_down(&mut self, _event: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+    /// Scroll to bottom (newest content)
+    pub fn scroll_to_bottom(&mut self, cx: &mut Context<Self>) {
+        self.scroll_offset = 0;
+        cx.notify();
+    }
+
+    /// Scroll to top (oldest content in scrollback)
+    pub fn scroll_to_top(&mut self, cx: &mut Context<Self>) {
+        let scroll_offset = {
+            let terminal = self.terminal.read(cx);
+            terminal.content().history_size
+        };
+        self.scroll_offset = scroll_offset;
+        cx.notify();
+    }
+
+    /// Handle mouse down for focus and selection start
+    fn on_mouse_down(&mut self, event: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         window.focus(&self.focus_handle, cx);
+
+        // Start selection
+        if let Some(pos) = self.position_from_mouse(event.position, cx) {
+            self.selection_start = Some(pos);
+            self.selection_end = Some(pos);
+            self.is_selecting = true;
+            cx.notify();
+        }
+    }
+
+    /// Handle mouse move for selection update
+    fn on_mouse_move(&mut self, event: &MouseMoveEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        if self.is_selecting {
+            if let Some(pos) = self.position_from_mouse(event.position, cx) {
+                self.selection_end = Some(pos);
+                cx.notify();
+            }
+        }
+    }
+
+    /// Handle mouse up to finish selection
+    fn on_mouse_up(&mut self, _event: &MouseUpEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        self.is_selecting = false;
+
+        // Clear selection if start equals end (no actual selection)
+        if self.selection_start == self.selection_end {
+            self.selection_start = None;
+            self.selection_end = None;
+            cx.notify();
+        }
+    }
+
+    /// Convert mouse position to grid position
+    fn position_from_mouse(&self, position: Point<Pixels>, cx: &Context<Self>) -> Option<GridPosition> {
+        let terminal = self.terminal.read(cx);
+        let size = terminal.size();
+
+        // Get cell width (use cached or fallback)
+        let cell_width: f32 = self.cell_width
+            .map(|w| w.into())
+            .unwrap_or(TERMINAL_FONT_SIZE * 0.6);
+        let cell_height: f32 = self.cell_height.into();
+
+        // Account for padding (3px)
+        let padding = 3.0;
+        let x: f32 = position.x.into();
+        let y: f32 = position.y.into();
+
+        let adjusted_x = (x - padding).max(0.0);
+        let adjusted_y = (y - padding).max(0.0);
+
+        // Use round() like Zed does for more accurate mouse position mapping
+        let col = (adjusted_x / cell_width).round() as usize;
+        let row = (adjusted_y / cell_height).round() as usize;
+
+        // Clamp to grid bounds
+        let col = col.min((size.cols as usize).saturating_sub(1));
+        let row = row.min((size.rows as usize).saturating_sub(1));
+
+        Some(GridPosition { col, row })
+    }
+
+    /// Get the current selection as normalized (start, end) where start <= end
+    pub fn get_selection(&self) -> Option<Selection> {
+        match (self.selection_start, self.selection_end) {
+            (Some(start), Some(end)) if start != end => {
+                // Normalize so start is before end
+                let (start, end) = if (start.row, start.col) <= (end.row, end.col) {
+                    (start, end)
+                } else {
+                    (end, start)
+                };
+                Some(Selection {
+                    start_col: start.col,
+                    start_row: start.row,
+                    end_col: end.col,
+                    end_row: end.row,
+                })
+            }
+            _ => None,
+        }
+    }
+
+    /// Clear the current selection
+    pub fn clear_selection(&mut self, cx: &mut Context<Self>) {
+        self.selection_start = None;
+        self.selection_end = None;
+        self.is_selecting = false;
+        cx.notify();
     }
 
     /// Get the terminal entity
@@ -158,14 +338,45 @@ impl Focusable for TerminalView {
 
 impl Render for TerminalView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let terminal = self.terminal.read(cx);
-        let grid = terminal.grid();
-        let theme = self.theme.clone();
+        // Measure cell width on first render
+        let _ = self.measure_cell_width(cx);
 
-        div()
+        let content = {
+            let terminal = self.terminal.read(cx);
+            terminal.content().clone()
+        };
+        let theme = self.theme.clone();
+        let scroll_offset = self.scroll_offset;
+
+        // Calculate scrollbar dimensions from content
+        let total_rows = content.total_lines;
+        let visible_rows = content.screen_lines;
+        let scrollback_len = content.history_size;
+
+        let has_scrollback = scrollback_len > 0;
+
+        // Scrollbar thumb position and size (as ratio 0.0 - 1.0)
+        let thumb_height_ratio = if total_rows > 0 {
+            ((visible_rows as f32 / total_rows as f32)).max(0.1).min(1.0)
+        } else {
+            1.0
+        };
+
+        // scroll_offset = 0 means at bottom, scroll_offset = scrollback_len means at top
+        let thumb_top_ratio = if scrollback_len > 0 {
+            let position_ratio = 1.0 - (scroll_offset as f32 / scrollback_len as f32);
+            position_ratio * (1.0 - thumb_height_ratio)
+        } else {
+            1.0 - thumb_height_ratio
+        };
+
+        // Get current selection
+        let selection = self.get_selection();
+
+        let container = div()
             .id("terminal-view")
             .flex()
-            .flex_col()
+            .flex_row()
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
@@ -176,12 +387,58 @@ impl Render for TerminalView {
             .on_key_down(cx.listener(Self::on_key_down))
             .on_scroll_wheel(cx.listener(Self::on_scroll))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+            .on_mouse_move(cx.listener(Self::on_mouse_move))
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .child(
+                // Terminal content with 5px padding
                 div()
                     .flex_1()
+                    .flex()
+                    .flex_col()
                     .overflow_hidden()
-                    .p_2()
-                    .child(Component::new(TerminalElement::new(grid, theme)))
-            )
+                    .pt(px(5.0))
+                    .pb(px(5.0))
+                    .pl(px(5.0))
+                    .pr(px(5.0))
+                    .child(TerminalElement::with_selection(
+                        self.terminal.clone(),
+                        theme.clone(),
+                        selection,
+                    )),
+            );
+
+        // Always add scrollbar track to maintain consistent layout
+        let scrollbar_track = if has_scrollback {
+            div()
+                .id("scrollbar-track")
+                .w(px(12.0))
+                .h_full()
+                .flex()
+                .flex_col()
+                .bg(rgba(0x2a2a2aff))
+                .relative()
+                .child(
+                    // Top spacer to position thumb
+                    div().h(relative(thumb_top_ratio)),
+                )
+                .child(
+                    // Scrollbar thumb
+                    div()
+                        .id("scrollbar-thumb")
+                        .w_full()
+                        .h(relative(thumb_height_ratio))
+                        .bg(rgba(0x5a5a5aff))
+                        .hover(|s: StyleRefinement| s.bg(rgba(0x7a7a7aff)))
+                        .rounded(px(4.0)),
+                )
+        } else {
+            // Empty placeholder to maintain layout
+            div()
+                .id("scrollbar-track")
+                .w(px(12.0))
+                .h_full()
+        };
+
+        container.child(scrollbar_track)
     }
 }
