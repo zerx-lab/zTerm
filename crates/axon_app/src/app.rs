@@ -77,7 +77,10 @@ impl AxonApp {
             titlebar: None, // We use custom title bar
             window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
                 None,
-                size(px(config.ui.window_width as f32), px(config.ui.window_height as f32)),
+                size(
+                    px(config.ui.window_width as f32),
+                    px(config.ui.window_height as f32),
+                ),
                 cx,
             ))),
             focus: true,
@@ -91,7 +94,7 @@ impl AxonApp {
             ..Default::default()
         };
 
-        cx.open_window(window_options, |window, cx| {
+        cx.open_window(window_options, |_window, cx| {
             // Create the workspace with initial terminal
             let workspace = cx.new(|cx| {
                 let terminal_size = TerminalSize::default();

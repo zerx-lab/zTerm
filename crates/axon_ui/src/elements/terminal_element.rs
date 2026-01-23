@@ -164,7 +164,10 @@ impl TerminalElement {
     }
 
     /// Get background color for a cell
-    fn get_bg_color(&self, cell: &axon_terminal::alacritty_terminal::term::cell::Cell) -> Option<Rgba> {
+    fn get_bg_color(
+        &self,
+        cell: &axon_terminal::alacritty_terminal::term::cell::Cell,
+    ) -> Option<Rgba> {
         let bg = if cell.flags.contains(Flags::INVERSE) {
             self.color_to_gpui(&cell.fg, true)
         } else {
@@ -190,10 +193,19 @@ impl TerminalElement {
             lines.entry(cell.point.line.0).or_default().push(cell);
         }
 
-        let cursor_line = content.cursor.point.line.0 + content.display_offset as i32;
+        // display_offset is used to convert terminal coordinates to visual coordinates
+        // When scrolled up, cell lines can be negative (history), we add display_offset
+        // to convert to visual screen coordinates (0 = top of visible area)
+        let display_offset = content.display_offset as i32;
+
+        // Cursor position in terminal coordinates (not visual)
+        let cursor_term_line = content.cursor.point.line.0;
         let cursor_col = content.cursor.point.column.0;
 
-        for (line_idx, mut cells) in lines {
+        for (term_line, mut cells) in lines {
+            // Convert terminal line to visual line (0 = top of screen)
+            let visual_line = term_line + display_offset;
+
             // Sort cells by column
             cells.sort_by_key(|c| c.point.column.0);
 
@@ -208,9 +220,11 @@ impl TerminalElement {
                     continue;
                 }
 
-                let is_cursor = line_idx == cursor_line && col == cursor_col;
-                let is_selected = self.selection
-                    .map(|s| s.contains(col, line_idx as usize))
+                // Check cursor using terminal coordinates (not visual)
+                let is_cursor = term_line == cursor_term_line && col == cursor_col;
+                let is_selected = self
+                    .selection
+                    .map(|s| s.contains(col, visual_line as usize))
                     .unwrap_or(false);
 
                 let fg_color = if is_cursor {
@@ -251,10 +265,10 @@ impl TerminalElement {
                     }
                 }
 
-                // Start new run
+                // Start new run with visual line coordinate
                 current_run = Some(StyledRun {
                     text: c.to_string(),
-                    line: line_idx,
+                    line: visual_line,
                     start_col: col,
                     fg_color,
                     bg_color,
@@ -419,9 +433,12 @@ impl Element for TerminalElement {
                 strikethrough: None,
             };
 
-            let shaped_line = window
-                .text_system()
-                .shape_line(run.text.clone().into(), font_size, &[text_run], None);
+            let shaped_line = window.text_system().shape_line(
+                run.text.clone().into(),
+                font_size,
+                &[text_run],
+                None,
+            );
 
             let _ = shaped_line.paint(
                 point(x, y),

@@ -6,12 +6,14 @@ use gpui::*;
 
 /// Layout direction for panes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum PaneDirection {
     Horizontal,
     Vertical,
 }
 
 /// A pane that can contain a terminal or be split into multiple panes
+#[allow(dead_code)]
 pub struct Pane {
     /// The terminal view (if this is a leaf pane)
     terminal_view: Option<Entity<TerminalView>>,
@@ -26,6 +28,7 @@ pub struct Pane {
     focus_handle: FocusHandle,
 }
 
+#[allow(dead_code)]
 impl Pane {
     /// Create a new pane with a terminal
     pub fn new(terminal: Entity<Terminal>, cx: &mut Context<Self>) -> Self {
@@ -62,7 +65,12 @@ impl Pane {
     }
 
     /// Split this pane
-    pub fn split(&mut self, direction: PaneDirection, new_terminal: Entity<Terminal>, cx: &mut Context<Self>) {
+    pub fn split(
+        &mut self,
+        direction: PaneDirection,
+        new_terminal: Entity<Terminal>,
+        cx: &mut Context<Self>,
+    ) {
         if self.is_leaf() {
             // Take the current terminal view
             let current_view = self.terminal_view.take();
@@ -96,19 +104,15 @@ impl Focusable for Pane {
 }
 
 impl Render for Pane {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         if let Some(ref terminal_view) = self.terminal_view {
             // Leaf pane - render terminal
-            div()
-                .size_full()
-                .child(terminal_view.clone())
+            div().size_full().child(terminal_view.clone())
         } else if !self.children.is_empty() {
             // Split pane - render children
             let direction = self.direction.unwrap_or(PaneDirection::Horizontal);
 
-            let container = div()
-                .size_full()
-                .flex();
+            let container = div().size_full().flex();
 
             let container = match direction {
                 PaneDirection::Horizontal => container.flex_row(),

@@ -12,6 +12,7 @@ pub struct TabInfo {
     /// The terminal view
     pub terminal_view: Entity<TerminalView>,
     /// The underlying terminal
+    #[allow(dead_code)]
     pub terminal: Entity<Terminal>,
 }
 
@@ -44,13 +45,9 @@ impl Workspace {
 
     /// Create a new tab with a terminal
     pub fn new_tab(&mut self, cx: &mut Context<Self>) {
-        let terminal = cx.new(|cx| {
-            Terminal::new(None, None, self.terminal_size, cx)
-        });
+        let terminal = cx.new(|cx| Terminal::new(None, None, self.terminal_size, cx));
 
-        let terminal_view = cx.new(|cx| {
-            TerminalView::new(terminal.clone(), cx)
-        });
+        let terminal_view = cx.new(|cx| TerminalView::new(terminal.clone(), cx));
 
         let tab_number = self.tabs.len() + 1;
         let tab_info = TabInfo {
@@ -83,6 +80,7 @@ impl Workspace {
     }
 
     /// Close a specific tab
+    #[allow(dead_code)]
     pub fn close_tab(&mut self, index: usize, cx: &mut Context<Self>) {
         if index >= self.tabs.len() || self.tabs.len() <= 1 {
             return;
@@ -121,6 +119,7 @@ impl Workspace {
     }
 
     /// Set the active tab by index
+    #[allow(dead_code)]
     pub fn set_active_tab(&mut self, index: usize, cx: &mut Context<Self>) {
         if index < self.tabs.len() {
             self.active_tab = index;
@@ -144,6 +143,7 @@ impl Workspace {
     }
 
     /// Get the active terminal
+    #[allow(dead_code)]
     pub fn active_terminal(&self) -> Option<&Entity<Terminal>> {
         self.tabs.get(self.active_tab).map(|t| &t.terminal)
     }
@@ -155,6 +155,7 @@ impl Workspace {
     }
 
     /// Resize all terminals
+    #[allow(dead_code)]
     pub fn resize_terminals(&mut self, size: TerminalSize, cx: &mut Context<Self>) {
         self.terminal_size = size;
         for tab in &self.tabs {
