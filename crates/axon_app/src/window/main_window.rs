@@ -1,8 +1,8 @@
 //! Main application window
 
-use crate::app::{NewTab, CloseTab, NextTab, PrevTab};
+use crate::app::{CloseTab, NewTab, NextTab, PrevTab};
 use crate::workspace::Workspace;
-use axon_ui::{TerminalTabBar, TabInfo, TitleBar};
+use axon_ui::{TabInfo, TitleBar};
 use gpui::*;
 
 /// The main application window
@@ -10,19 +10,16 @@ pub struct MainWindow {
     /// The workspace containing terminals
     workspace: Entity<Workspace>,
 
-    /// Focus handle
-    focus_handle: FocusHandle,
+    /// Title bar entity
+    title_bar: Entity<TitleBar>,
 }
 
 impl MainWindow {
     /// Create a new main window
     pub fn new(workspace: Entity<Workspace>, cx: &mut Context<Self>) -> Self {
-        let focus_handle = cx.focus_handle();
+        let title_bar = cx.new(|_| TitleBar::new());
 
-        Self {
-            workspace,
-            focus_handle,
-        }
+        Self { workspace, title_bar }
     }
 
     fn handle_new_tab(&mut self, _: &NewTab, _window: &mut Window, cx: &mut Context<Self>) {
@@ -50,29 +47,34 @@ impl MainWindow {
     }
 }
 
-impl Focusable for MainWindow {
-    fn focus_handle(&self, _cx: &App) -> FocusHandle {
-        self.focus_handle.clone()
-    }
-}
-
 impl Render for MainWindow {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let workspace = self.workspace.read(cx);
+        // Get tab information from workspace
+        let (tabs, active_tab_index, tab_count, working_dir) = {
+            let workspace = self.workspace.read(cx);
+            let tabs: Vec<TabInfo> = workspace
+                .tabs()
+                .iter()
+                .enumerate()
+                .map(|(i, tab)| TabInfo {
+                    id: i,
+                    title: tab.title.clone(),
+                    active: i == workspace.active_tab_index(),
+                })
+                .collect();
+            let active_tab_index = workspace.active_tab_index();
+            let tab_count = workspace.tabs().len();
+            let working_dir = workspace.active_working_directory().unwrap_or_default();
+            (tabs, active_tab_index, tab_count, working_dir)
+        };
 
-        // Get tab information
-        let tabs: Vec<TabInfo> = workspace
-            .tabs()
-            .iter()
-            .enumerate()
-            .map(|(i, tab)| TabInfo {
-                id: i,
-                title: tab.title.clone(),
-                active: i == workspace.active_tab_index(),
-            })
-            .collect();
+        // Update title bar tabs
+        self.title_bar.update(cx, |title_bar, _| {
+            title_bar.tabs = tabs;
+        });
 
-        let active_terminal_view = workspace.active_terminal_view();
+        // Get active terminal view separately after the mutable borrow is done
+        let active_terminal_view = self.workspace.read(cx).active_terminal_view();
 
         div()
             .id("main-window")
@@ -81,16 +83,17 @@ impl Render for MainWindow {
             .size_full()
             .bg(rgb(0x1a1a1a))
             .text_color(rgb(0xe0e0e0))
-            .track_focus(&self.focus_handle)
+            // NOTE: 不要在窗口根节点 track_focus。
+            // 在 Windows 上，自绘 titlebar 依赖 WM_NCHITTEST -> HTCAPTION 的默认行为来触发系统拖拽。
+            // 而 `track_focus` 会在 MouseDown 时自动 focus 并调用 window.prevent_default()，
+            // 进而导致 WM_NCLBUTTONDOWN 被 GPUI 标记为 handled，阻止系统开始拖拽。
             .key_context("MainWindow")
             .on_action(cx.listener(Self::handle_new_tab))
             .on_action(cx.listener(Self::handle_close_tab))
             .on_action(cx.listener(Self::handle_next_tab))
             .on_action(cx.listener(Self::handle_prev_tab))
-            // Custom title bar
-            .child(Component::new(TitleBar::new("Axon Terminal")))
-            // Tab bar
-            .child(Component::new(TerminalTabBar::new().tabs(tabs)))
+            // Title bar with integrated tabs (like Warp Terminal)
+            .child(self.title_bar.clone())
             // Terminal content
             .child(
                 div()
@@ -106,7 +109,7 @@ impl Render for MainWindow {
                             .size_full()
                             .child("No terminal open")
                             .into_any_element()
-                    })
+                    }),
             )
             // Status bar
             .child(
@@ -121,15 +124,8 @@ impl Render for MainWindow {
                     .border_color(rgb(0x333333))
                     .text_xs()
                     .text_color(rgb(0x888888))
-                    .child(
-                        div()
-                            .flex_1()
-                            .child(workspace.active_working_directory().unwrap_or_default())
-                    )
-                    .child(
-                        div()
-                            .child(format!("Tab {}/{}", workspace.active_tab_index() + 1, workspace.tabs().len()))
-                    )
+                    .child(div().flex_1().child(working_dir))
+                    .child(div().child(format!("Tab {}/{}", active_tab_index + 1, tab_count))),
             )
     }
 }

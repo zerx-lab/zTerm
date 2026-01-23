@@ -21,4 +21,7 @@ tracing.workspace = true
 parking_lot.workspace = true
 unicode-width.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
+
 [dev-dependencies]

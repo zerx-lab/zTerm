@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 背景 -->
+  <rect width="512" height="512" rx="64" fill="#1a1a1a"/>
+  
+  <!-- 终端提示符 > -->
+  <path d="M100 200 L160 256 L100 312" 
+        stroke="#00d4aa" 
+        stroke-width="28" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        fill="none"/>
+  
+  <!-- Z 字符 -->
+  <path d="M200 200 L360 200 L200 312 L360 312" 
+        stroke="#ffffff" 
+        stroke-width="28" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        fill="none"/>
+</svg>

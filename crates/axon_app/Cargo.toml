@@ -39,3 +39,9 @@ windows.workspace = true
 
 [features]
 default = []
+
+[build-dependencies]
+ico = "0.5.0"
+resvg = "0.45.1"
+tiny-skia = "0.11.4"
+winresource = "0.1.29"
