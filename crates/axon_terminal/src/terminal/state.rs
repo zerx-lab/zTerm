@@ -557,10 +557,24 @@ impl Terminal {
         &self.working_directory
     }
 
-    /// Scroll the terminal
+    /// Scroll the terminal by delta lines
     pub fn scroll(&mut self, delta: i32) {
         let mut term = self.term.lock();
         term.scroll_display(alacritty_terminal::grid::Scroll::Delta(delta));
+        drop(term);
+        self.sync_content();
+    }
+
+    /// Set absolute scroll offset (0 = bottom/newest, history_size = top/oldest)
+    pub fn set_scroll_offset(&mut self, offset: usize) {
+        let mut term = self.term.lock();
+        // Get current display offset
+        let current_offset = term.grid().display_offset();
+        // Calculate delta needed
+        let delta = offset as i32 - current_offset as i32;
+        if delta != 0 {
+            term.scroll_display(alacritty_terminal::grid::Scroll::Delta(delta));
+        }
         drop(term);
         self.sync_content();
     }

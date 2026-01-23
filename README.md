@@ -18,15 +18,8 @@
 <p align="center">
   <a href="#-特性">特性</a> •
   <a href="#-安装">安装</a> •
-  <a href="#-主题">主题</a> •
   <a href="#-路线图">路线图</a> •
   <a href="#-许可证">许可证</a>
-</p>
-
----
-
-<p align="center">
-  <img src="https://via.placeholder.com/800x500/1a1a1a/00d4aa?text=zTerm+Screenshot" alt="zTerm Screenshot" width="800">
 </p>
 
 ---
@@ -99,32 +92,6 @@ cargo build --release
 ```
 
 > 构建需要 Rust 1.85+ 环境
-
----
-
-## 🎨 主题
-
-zTerm 内置多款精心设计的主题：
-
-<table>
-<tr>
-<td align="center" width="33%">
-<img src="https://via.placeholder.com/200x120/1a1a1a/00d4aa?text=Dark" alt="Dark Theme"><br>
-<strong>Dark</strong><br>
-<sub>经典深色主题</sub>
-</td>
-<td align="center" width="33%">
-<img src="https://via.placeholder.com/200x120/282a36/bd93f9?text=Dracula" alt="Dracula Theme"><br>
-<strong>Dracula</strong><br>
-<sub>优雅的紫色调</sub>
-</td>
-<td align="center" width="33%">
-<img src="https://via.placeholder.com/200x120/24273a/8aadf4?text=More..." alt="More Themes"><br>
-<strong>更多主题</strong><br>
-<sub>持续更新中...</sub>
-</td>
-</tr>
-</table>
 
 ---
 

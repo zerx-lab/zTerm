@@ -1,6 +1,6 @@
 //! Terminal view component
 
-use crate::elements::{Selection, TerminalElement};
+use crate::elements::{ScrollbarElement, ScrollbarState, Selection, TerminalElement};
 use crate::theme::TerminalTheme;
 use axon_terminal::{Terminal, TerminalEvent};
 use gpui::*;
@@ -79,6 +79,9 @@ pub struct TerminalView {
 
     /// IME state for input method composition
     pub(crate) ime_state: Option<ImeState>,
+
+    /// Scrollbar state entity
+    scrollbar_state: Entity<ScrollbarState>,
 }
 
 impl TerminalView {
@@ -89,6 +92,9 @@ impl TerminalView {
 
         // Subscribe to terminal events
         cx.subscribe(&terminal, Self::on_terminal_event).detach();
+
+        // Create scrollbar state entity
+        let scrollbar_state = cx.new(|_| ScrollbarState::new());
 
         Self {
             terminal,
@@ -101,6 +107,7 @@ impl TerminalView {
             cell_width: None, // Will be measured on first use
             shared_bounds: SharedBounds::default(),
             ime_state: None,
+            scrollbar_state,
         }
     }
 
@@ -312,6 +319,18 @@ impl TerminalView {
         }
     }
 
+    /// Handle scrollbar scroll event
+    fn on_scrollbar_scroll(&mut self, new_offset: usize, cx: &mut Context<Self>) {
+        self.scroll_offset = new_offset;
+
+        // Update terminal scroll state
+        self.terminal.update(cx, |terminal, _| {
+            terminal.set_scroll_offset(new_offset);
+        });
+
+        cx.notify();
+    }
+
     /// Convert mouse position to grid position
     ///
     /// Mouse position is in window coordinates. We need to:
@@ -461,31 +480,29 @@ impl Render for TerminalView {
         let scroll_offset = self.scroll_offset;
 
         // Calculate scrollbar dimensions from content
-        let total_rows = content.total_lines;
-        let visible_rows = content.screen_lines;
-        let scrollback_len = content.history_size;
-
-        let has_scrollback = scrollback_len > 0;
-
-        // Scrollbar thumb position and size (as ratio 0.0 - 1.0)
-        let thumb_height_ratio = if total_rows > 0 {
-            (visible_rows as f32 / total_rows as f32).max(0.1).min(1.0)
-        } else {
-            1.0
-        };
-
-        // scroll_offset = 0 means at bottom, scroll_offset = scrollback_len means at top
-        let thumb_top_ratio = if scrollback_len > 0 {
-            let position_ratio = 1.0 - (scroll_offset as f32 / scrollback_len as f32);
-            position_ratio * (1.0 - thumb_height_ratio)
-        } else {
-            1.0 - thumb_height_ratio
-        };
+        let total_lines = content.total_lines;
+        let visible_lines = content.screen_lines;
+        let max_scroll = content.history_size;
 
         // Get current selection
         let selection = self.get_selection();
 
-        let container = div()
+        // Create scrollbar element with callback
+        let terminal_view = cx.entity().clone();
+        let scrollbar = ScrollbarElement::new(
+            self.scrollbar_state.clone(),
+            total_lines,
+            visible_lines,
+            scroll_offset,
+            max_scroll,
+        )
+        .on_scroll(move |new_offset, _window, cx| {
+            terminal_view.update(cx, |view, view_cx| {
+                view.on_scrollbar_scroll(new_offset, view_cx);
+            });
+        });
+
+        div()
             .id("terminal-view")
             .flex()
             .flex_row()
@@ -520,37 +537,7 @@ impl Render for TerminalView {
                         selection,
                         self.shared_bounds.clone(),
                     )),
-            );
-
-        // Always add scrollbar track to maintain consistent layout
-        let scrollbar_track = if has_scrollback {
-            div()
-                .id("scrollbar-track")
-                .w(px(12.0))
-                .h_full()
-                .flex()
-                .flex_col()
-                .bg(rgba(0x2a2a2aff))
-                .relative()
-                .child(
-                    // Top spacer to position thumb
-                    div().h(relative(thumb_top_ratio)),
-                )
-                .child(
-                    // Scrollbar thumb
-                    div()
-                        .id("scrollbar-thumb")
-                        .w_full()
-                        .h(relative(thumb_height_ratio))
-                        .bg(rgba(0x5a5a5aff))
-                        .hover(|s: StyleRefinement| s.bg(rgba(0x7a7a7aff)))
-                        .rounded(px(4.0)),
-                )
-        } else {
-            // Empty placeholder to maintain layout
-            div().id("scrollbar-track").w(px(12.0)).h_full()
-        };
-
-        container.child(scrollbar_track)
+            )
+            .child(scrollbar)
     }
 }
