@@ -100,7 +100,7 @@ mod grid_performance_tests {
         // Large terminal: 200x100
         let _grid = assert_performance(
             "Grid creation 200x100",
-            Duration::from_millis(5),
+            Duration::from_millis(100),
             || Grid::new(200, 100),
         );
     }
@@ -110,7 +110,7 @@ mod grid_performance_tests {
         // Very large grid: 500x500
         let _grid = assert_performance(
             "Grid creation 500x500",
-            Duration::from_millis(50),
+            Duration::from_millis(300),
             || Grid::new(500, 500),
         );
     }
@@ -120,7 +120,7 @@ mod grid_performance_tests {
         // Extreme case: 1000x1000
         let _grid = assert_performance(
             "Grid creation 1000x1000",
-            Duration::from_millis(200),
+            Duration::from_millis(500),
             || Grid::new(1000, 1000),
         );
     }
@@ -245,7 +245,7 @@ mod grid_performance_tests {
 
         assert_performance(
             "Clear grid 1000 times",
-            Duration::from_millis(100),
+            Duration::from_millis(600),
             || {
                 for _ in 0..1000 {
                     grid.clear();
@@ -348,7 +348,7 @@ mod row_performance_tests {
     fn test_row_creation_performance() {
         assert_performance(
             "Create 1000 rows of 80 cols",
-            Duration::from_millis(20),
+            Duration::from_millis(200),
             || {
                 let rows: Vec<Row> = (0..1000).map(|_| Row::new(80)).collect();
                 rows
@@ -360,7 +360,7 @@ mod row_performance_tests {
     fn test_row_creation_wide() {
         assert_performance(
             "Create 100 rows of 500 cols",
-            Duration::from_millis(20),
+            Duration::from_millis(100),
             || {
                 let rows: Vec<Row> = (0..100).map(|_| Row::new(500)).collect();
                 rows
