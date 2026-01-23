@@ -29,3 +29,4 @@ Thumbs.db
 .env.local
 config.local.toml
 /AGENTS.md
+CLAUDE.md
