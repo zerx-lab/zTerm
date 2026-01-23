@@ -606,3 +606,5 @@ impl RenderOnce for LinuxCaptionButton {
             .child(self.icon())
     }
 }
+
+// Unit tests are in tests/title_bar_tests.rs
