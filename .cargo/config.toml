@@ -18,7 +18,7 @@ rustflags = ["-C", "link-arg=-fuse-ld=lld"]
 
 [alias]
 # Development aliases
-dev = "run -p axon_app"
+dev = "run -p z_term"
 check-all = "check --workspace --all-targets"
 test-all = "test --workspace"
 clippy-all = "clippy --workspace --all-targets -- -D warnings"

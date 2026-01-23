@@ -83,7 +83,7 @@ cd zterm
 cargo build --release
 
 # 运行
-cargo run -p axon_app --release
+cargo run -p z_term --release
 ```
 
 ---
@@ -125,7 +125,7 @@ cargo run -p axon_app --release
 ```
 zterm/
 ├── crates/
-│   ├── axon_app/        # 主应用入口
+│   ├── z_term/          # 主应用入口
 │   ├── axon_terminal/   # 终端核心逻辑 (PTY、VT解析)
 │   ├── axon_ui/         # UI 组件 (标签栏、终端视图、滚动条)
 │   ├── axon_input/      # 输入处理

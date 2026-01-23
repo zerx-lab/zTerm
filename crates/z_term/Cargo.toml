@@ -1,5 +1,5 @@
 [package]
-name = "axon_app"
+name = "z_term"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
