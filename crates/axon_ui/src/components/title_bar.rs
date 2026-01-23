@@ -607,4 +607,6 @@ impl RenderOnce for LinuxCaptionButton {
     }
 }
 
-// Unit tests are in tests/title_bar_tests.rs
+// Unit tests for public API are in tests/title_bar_tests.rs
+// Private types (WindowsCaptionButton, LinuxCaptionButton) are internal implementation
+// details and are implicitly tested through the public API

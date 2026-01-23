@@ -13,5 +13,6 @@ pub use components::title_bar::{
     LinuxWindowControls, NewTab, PlatformStyle, TitleBarEvent, WindowsWindowControls,
     TITLE_BAR_HEIGHT,
 };
-pub use components::{TabInfo, TerminalTabBar, TerminalView, TitleBar};
+pub use components::{GridPosition, ImeState, SharedBounds, TabInfo, TerminalTabBar, TerminalView, TitleBar};
+pub use elements::{ScrollbarElement, ScrollbarState, Selection, ThumbState};
 pub use theme::TerminalTheme;

@@ -1,19 +1,9 @@
 //! Terminal tab bar component
 
+use crate::components::title_bar::TabInfo;
 use gpui::prelude::*;
 use gpui::*;
 use gpui_component::h_flex;
-
-/// Tab information
-#[derive(Clone)]
-pub struct TabInfo {
-    pub id: usize,
-    pub title: String,
-    pub active: bool,
-    pub shell_name: String,
-    /// Working directory path
-    pub working_directory: String,
-}
 
 /// Terminal tab bar component
 pub struct TerminalTabBar {
