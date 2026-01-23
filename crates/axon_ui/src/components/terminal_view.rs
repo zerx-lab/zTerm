@@ -5,7 +5,15 @@ use crate::theme::TerminalTheme;
 use axon_terminal::{Terminal, TerminalEvent};
 use gpui::*;
 use std::cell::Cell;
+use std::ops::Range;
 use std::rc::Rc;
+
+/// IME (Input Method Editor) state for handling Chinese/Japanese/Korean input
+#[derive(Clone)]
+pub struct ImeState {
+    /// The text currently being composed (pre-edit text)
+    pub marked_text: String,
+}
 
 /// Terminal font family (must match main_window.rs)
 const TERMINAL_FONT_FAMILY: &str = "Consolas";
@@ -68,6 +76,9 @@ pub struct TerminalView {
 
     /// Shared bounds with TerminalElement for accurate mouse position calculation
     shared_bounds: SharedBounds,
+
+    /// IME state for input method composition
+    pub(crate) ime_state: Option<ImeState>,
 }
 
 impl TerminalView {
@@ -89,6 +100,7 @@ impl TerminalView {
             is_selecting: false,
             cell_width: None, // Will be measured on first use
             shared_bounds: SharedBounds::default(),
+            ime_state: None,
         }
     }
 
@@ -149,8 +161,9 @@ impl TerminalView {
     }
 
     /// Convert a keystroke to terminal input bytes
+    /// NOTE: Only handles special keys. Regular character input is handled by InputHandler (IME)
     fn keystroke_to_input(&self, keystroke: &Keystroke) -> Option<String> {
-        // Handle special keys
+        // Handle Ctrl key combinations
         if keystroke.modifiers.control {
             if let Some(c) = keystroke.key.chars().next() {
                 // Ctrl+A through Ctrl+Z
@@ -165,7 +178,7 @@ impl TerminalView {
             }
         }
 
-        // Handle other keys
+        // Only handle special keys here - regular characters are handled by InputHandler
         match keystroke.key.as_str() {
             "enter" => Some("\r".to_string()),
             "tab" => Some("\t".to_string()),
@@ -193,8 +206,7 @@ impl TerminalView {
             "f10" => Some("\x1b[21~".to_string()),
             "f11" => Some("\x1b[23~".to_string()),
             "f12" => Some("\x1b[24~".to_string()),
-            "space" => Some(" ".to_string()),
-            key if key.len() == 1 => Some(key.to_string()),
+            // Don't handle regular characters here - they go through InputHandler
             _ => None,
         }
     }
@@ -385,6 +397,49 @@ impl TerminalView {
     pub fn terminal(&self) -> &Entity<Terminal> {
         &self.terminal
     }
+
+    /// Set the marked (pre-edit) text from IME composition
+    pub(crate) fn set_marked_text(&mut self, text: String, cx: &mut Context<Self>) {
+        if text.is_empty() {
+            return self.clear_marked_text(cx);
+        }
+        self.ime_state = Some(ImeState { marked_text: text });
+        cx.notify();
+    }
+
+    /// Get the range of marked text (in UTF-16 code units)
+    pub(crate) fn marked_text_range(&self) -> Option<Range<usize>> {
+        self.ime_state
+            .as_ref()
+            .map(|state| 0..state.marked_text.encode_utf16().count())
+    }
+
+    /// Clear the marked (pre-edit) text state
+    pub(crate) fn clear_marked_text(&mut self, cx: &mut Context<Self>) {
+        if self.ime_state.is_some() {
+            self.ime_state = None;
+            cx.notify();
+        }
+    }
+
+    /// Commit (send) the given text to the PTY
+    pub(crate) fn commit_text(&mut self, text: &str, cx: &mut Context<Self>) {
+        if !text.is_empty() {
+            self.terminal.update(cx, |term, _| {
+                term.write_str(text);
+            });
+        }
+    }
+
+    /// Get the focus handle reference
+    pub fn focus_handle_ref(&self) -> &FocusHandle {
+        &self.focus_handle
+    }
+
+    /// Get the theme reference
+    pub fn theme_ref(&self) -> &TerminalTheme {
+        &self.theme
+    }
 }
 
 impl Focusable for TerminalView {
@@ -457,8 +512,10 @@ impl Render for TerminalView {
                     .pb(px(5.0))
                     .pl(px(5.0))
                     .pr(px(5.0))
-                    .child(TerminalElement::with_selection(
+                    .child(TerminalElement::new(
                         self.terminal.clone(),
+                        cx.entity().clone(),
+                        self.focus_handle.clone(),
                         theme.clone(),
                         selection,
                         self.shared_bounds.clone(),

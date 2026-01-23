@@ -6,12 +6,13 @@
 //! - Uses direct paint calls instead of creating div elements
 //! - Resizes terminal based on actual bounds during prepaint
 
-use crate::components::SharedBounds;
+use crate::components::{SharedBounds, TerminalView};
 use crate::theme::TerminalTheme;
 use axon_terminal::alacritty_terminal::term::cell::Flags;
 use axon_terminal::alacritty_terminal::vte::ansi::Color as AnsiColor;
 use axon_terminal::{IndexedCell, Terminal, TerminalBounds, TerminalContent};
 use gpui::*;
+use std::ops::Range;
 use unicode_width::UnicodeWidthChar;
 
 /// Selection range in the terminal
@@ -46,6 +47,8 @@ pub struct StyledRun {
     text: String,
     line: i32,
     start_col: usize,
+    /// Number of characters in this run (for merge checking, like zed)
+    cell_count: usize,
     /// Number of terminal columns this run spans (accounts for wide chars like CJK)
     col_span: usize,
     fg_color: Rgba,
@@ -68,11 +71,17 @@ pub struct LayoutState {
     /// Theme colors
     background: Rgba,
     cursor_color: Rgba,
+    /// Cursor bounds for IME positioning
+    cursor_bounds: Option<Bounds<Pixels>>,
+    /// Base text style for IME rendering
+    base_text_style: TextStyle,
 }
 
 /// Terminal element for rendering terminal content
 pub struct TerminalElement {
     terminal: Entity<Terminal>,
+    terminal_view: Entity<TerminalView>,
+    focus: FocusHandle,
     theme: TerminalTheme,
     selection: Option<Selection>,
     /// Shared bounds for mouse position calculation
@@ -80,25 +89,19 @@ pub struct TerminalElement {
 }
 
 impl TerminalElement {
-    /// Create a new terminal element
-    pub fn new(terminal: Entity<Terminal>, theme: TerminalTheme) -> Self {
-        Self {
-            terminal,
-            theme,
-            selection: None,
-            shared_bounds: None,
-        }
-    }
-
-    /// Create with selection and shared bounds for mouse coordinate conversion
-    pub fn with_selection(
+    /// Create with all necessary components for full IME support
+    pub fn new(
         terminal: Entity<Terminal>,
+        terminal_view: Entity<TerminalView>,
+        focus: FocusHandle,
         theme: TerminalTheme,
         selection: Option<Selection>,
         shared_bounds: SharedBounds,
     ) -> Self {
         Self {
             terminal,
+            terminal_view,
+            focus,
             theme,
             selection,
             shared_bounds: Some(shared_bounds),
@@ -277,17 +280,19 @@ impl TerminalElement {
                 let underline = cell.cell.flags.contains(Flags::UNDERLINE);
 
                 // Check if we can extend the current run
+                // Use cell_count (like zed) to check column position - this naturally breaks
+                // batches after wide characters because their column offset is 2 but cell_count is 1
                 if let Some(ref mut run) = current_run {
-                    // Use col_span to track actual column position instead of chars().count()
                     let can_extend = run.fg_color == fg_color
                         && run.bg_color == bg_color
                         && run.bold == bold
                         && run.italic == italic
                         && run.underline == underline
-                        && (run.start_col + run.col_span) == col;
+                        && (run.start_col + run.cell_count) == col;
 
                     if can_extend {
                         run.text.push(c);
+                        run.cell_count += 1;
                         run.col_span += char_col_span;
                         continue;
                     } else {
@@ -301,6 +306,7 @@ impl TerminalElement {
                     text: c.to_string(),
                     line: visual_line,
                     start_col: col,
+                    cell_count: 1,
                     col_span: char_col_span,
                     fg_color,
                     bg_color,
@@ -390,6 +396,23 @@ impl Element for TerminalElement {
         let cursor_line = content.cursor.point.line.0 + content.display_offset as i32;
         let cursor_col = content.cursor.point.column.0;
 
+        // Calculate cursor bounds for IME positioning (relative to element origin)
+        let cursor_bounds = Some(Bounds::new(
+            point(
+                cell_width * cursor_col as f32,
+                line_height * cursor_line as f32,
+            ),
+            size(cell_width, line_height),
+        ));
+
+        // Create base text style for IME rendering
+        let base_text_style = TextStyle {
+            font_family: self.theme.font_family.clone().into(),
+            font_size: font_size.into(),
+            color: self.theme.foreground.into(),
+            ..Default::default()
+        };
+
         LayoutState {
             text_runs,
             cursor_line,
@@ -398,6 +421,8 @@ impl Element for TerminalElement {
             line_height,
             background: self.theme.background,
             cursor_color: self.theme.cursor_color,
+            cursor_bounds,
+            base_text_style,
         }
     }
 
@@ -428,6 +453,19 @@ impl Element for TerminalElement {
             ..Default::default()
         };
         let font_size = px(self.theme.font_size);
+
+        // Get marked text (IME composition) for rendering
+        let marked_text: Option<String> = {
+            let ime_state = &self.terminal_view.read(cx).ime_state;
+            ime_state.as_ref().map(|state| state.marked_text.clone())
+        };
+
+        // Register input handler for IME support
+        let terminal_input_handler = TerminalInputHandler {
+            terminal_view: self.terminal_view.clone(),
+            cursor_bounds: layout.cursor_bounds.map(|b| b + origin),
+        };
+        window.handle_input(&self.focus, terminal_input_handler, cx);
 
         // Paint text runs
         for run in &layout.text_runs {
@@ -490,14 +528,61 @@ impl Element for TerminalElement {
             );
         }
 
-        // Paint cursor (block cursor)
-        let cursor_x = origin.x + layout.cell_width * layout.cursor_col as f32;
-        let cursor_y = origin.y + layout.line_height * layout.cursor_line as f32;
-        let cursor_bounds = Bounds::new(
-            point(cursor_x, cursor_y),
-            size(layout.cell_width, layout.line_height),
-        );
-        window.paint_quad(fill(cursor_bounds, layout.cursor_color));
+        // Paint IME marked text (composition) with underline
+        if let Some(ref text_to_mark) = marked_text {
+            if !text_to_mark.is_empty() {
+                if let Some(ime_bounds) = layout.cursor_bounds {
+                    let ime_position = (ime_bounds + origin).origin;
+
+                    // Create underlined text style for IME
+                    let ime_text_run = gpui::TextRun {
+                        len: text_to_mark.len(),
+                        font: font.clone(),
+                        color: layout.base_text_style.color,
+                        background_color: None,
+                        underline: Some(UnderlineStyle {
+                            thickness: px(1.0),
+                            color: Some(layout.base_text_style.color),
+                            wavy: false,
+                        }),
+                        strikethrough: None,
+                    };
+
+                    let shaped_line = window.text_system().shape_line(
+                        text_to_mark.clone().into(),
+                        font_size,
+                        &[ime_text_run],
+                        None,
+                    );
+
+                    // Paint background to cover terminal text behind marked text
+                    let ime_background_bounds =
+                        Bounds::new(ime_position, size(shaped_line.width, layout.line_height));
+                    window.paint_quad(fill(ime_background_bounds, layout.background));
+
+                    // Paint the marked text
+                    let _ = shaped_line.paint(
+                        ime_position,
+                        layout.line_height,
+                        TextAlign::Left,
+                        None,
+                        window,
+                        cx,
+                    );
+                }
+            }
+        }
+
+        // Paint cursor (block cursor) - only when there's no marked text
+        if marked_text.is_none() {
+            let cursor_x = origin.x + layout.cell_width * layout.cursor_col as f32;
+            let cursor_y = origin.y + layout.line_height * layout.cursor_line as f32;
+            let cursor_bounds = Bounds::new(
+                point(cursor_x, cursor_y),
+                size(layout.cell_width, layout.line_height),
+            );
+            window.paint_quad(fill(cursor_bounds, layout.cursor_color));
+        }
     }
 }
 
@@ -506,5 +591,99 @@ impl IntoElement for TerminalElement {
 
     fn into_element(self) -> Self::Element {
         self
+    }
+}
+
+/// Input handler for terminal IME support
+pub struct TerminalInputHandler {
+    terminal_view: Entity<TerminalView>,
+    cursor_bounds: Option<Bounds<Pixels>>,
+}
+
+impl InputHandler for TerminalInputHandler {
+    fn selected_text_range(
+        &mut self,
+        _ignore_disabled_input: bool,
+        _window: &mut Window,
+        _cx: &mut App,
+    ) -> Option<UTF16Selection> {
+        // Terminal always returns empty selection for IME purposes
+        Some(UTF16Selection {
+            range: 0..0,
+            reversed: false,
+        })
+    }
+
+    fn marked_text_range(&mut self, _window: &mut Window, cx: &mut App) -> Option<Range<usize>> {
+        self.terminal_view.read(cx).marked_text_range()
+    }
+
+    fn text_for_range(
+        &mut self,
+        _range_utf16: Range<usize>,
+        _adjusted_range: &mut Option<Range<usize>>,
+        _window: &mut Window,
+        _cx: &mut App,
+    ) -> Option<String> {
+        None
+    }
+
+    fn replace_text_in_range(
+        &mut self,
+        _replacement_range: Option<Range<usize>>,
+        text: &str,
+        _window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.terminal_view.update(cx, |view, view_cx| {
+            view.clear_marked_text(view_cx);
+            view.commit_text(text, view_cx);
+        });
+    }
+
+    fn replace_and_mark_text_in_range(
+        &mut self,
+        _range_utf16: Option<Range<usize>>,
+        new_text: &str,
+        _new_selected_range: Option<Range<usize>>,
+        _window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.terminal_view.update(cx, |view, view_cx| {
+            view.set_marked_text(new_text.to_string(), view_cx);
+        });
+    }
+
+    fn unmark_text(&mut self, _window: &mut Window, cx: &mut App) {
+        self.terminal_view.update(cx, |view, view_cx| {
+            view.clear_marked_text(view_cx);
+        });
+    }
+
+    fn bounds_for_range(
+        &mut self,
+        range_utf16: Range<usize>,
+        _window: &mut Window,
+        _cx: &mut App,
+    ) -> Option<Bounds<Pixels>> {
+        // Return cursor bounds offset by the marked text range
+        let mut bounds = self.cursor_bounds?;
+        // Offset for the character position in the marked text
+        let offset_x = bounds.size.width * range_utf16.start as f32;
+        bounds.origin.x += offset_x;
+        Some(bounds)
+    }
+
+    fn character_index_for_point(
+        &mut self,
+        _point: Point<Pixels>,
+        _window: &mut Window,
+        _cx: &mut App,
+    ) -> Option<usize> {
+        None
+    }
+
+    fn apple_press_and_hold_enabled(&mut self) -> bool {
+        false
     }
 }
