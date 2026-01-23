@@ -64,7 +64,7 @@ impl TerminalTheme {
                 rgba(0x4ec9b0ff), // Bright Cyan
                 rgba(0xffffffff), // Bright White
             ],
-            font_family: "Consolas".into(),
+            font_family: "JetBrainsMono Nerd Font Mono".into(),
             font_size: 14.0,
             line_height: 1.4,
         }
@@ -97,7 +97,7 @@ impl TerminalTheme {
                 rgba(0x5ffdffff), // Bright Cyan
                 rgba(0xffffffff), // Bright White
             ],
-            font_family: "Consolas".into(),
+            font_family: "JetBrainsMono Nerd Font Mono".into(),
             font_size: 14.0,
             line_height: 1.4,
         }
@@ -130,7 +130,7 @@ impl TerminalTheme {
                 rgba(0xa4ffffff), // Bright Cyan
                 rgba(0xffffffff), // Bright White
             ],
-            font_family: "Consolas".into(),
+            font_family: "JetBrainsMono Nerd Font Mono".into(),
             font_size: 14.0,
             line_height: 1.4,
         }
@@ -163,7 +163,7 @@ impl TerminalTheme {
                 rgba(0x56b6c2ff), // Bright Cyan
                 rgba(0xffffffff), // Bright White
             ],
-            font_family: "Consolas".into(),
+            font_family: "JetBrainsMono Nerd Font Mono".into(),
             font_size: 14.0,
             line_height: 1.4,
         }
@@ -196,7 +196,7 @@ impl TerminalTheme {
                 rgba(0x8fbcbbff), // Bright Cyan
                 rgba(0xeceff4ff), // Bright White
             ],
-            font_family: "Consolas".into(),
+            font_family: "JetBrainsMono Nerd Font Mono".into(),
             font_size: 14.0,
             line_height: 1.4,
         }

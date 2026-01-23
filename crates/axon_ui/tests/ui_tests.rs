@@ -69,7 +69,7 @@ mod terminal_theme_tests {
     #[test]
     fn test_dark_theme_properties() {
         let theme = TerminalTheme::dark();
-        assert_eq!(theme.font_family.as_ref(), "Consolas");
+        assert_eq!(theme.font_family.as_ref(), "JetBrainsMono Nerd Font Mono");
         assert_eq!(theme.font_size, 14.0);
         assert_eq!(theme.line_height, 1.4);
         assert_eq!(theme.ansi_colors.len(), 16);
@@ -78,7 +78,7 @@ mod terminal_theme_tests {
     #[test]
     fn test_light_theme_properties() {
         let theme = TerminalTheme::light();
-        assert_eq!(theme.font_family.as_ref(), "Consolas");
+        assert_eq!(theme.font_family.as_ref(), "JetBrainsMono Nerd Font Mono");
         assert_eq!(theme.font_size, 14.0);
         assert_eq!(theme.ansi_colors.len(), 16);
     }
@@ -86,21 +86,21 @@ mod terminal_theme_tests {
     #[test]
     fn test_dracula_theme_properties() {
         let theme = TerminalTheme::dracula();
-        assert_eq!(theme.font_family.as_ref(), "Consolas");
+        assert_eq!(theme.font_family.as_ref(), "JetBrainsMono Nerd Font Mono");
         assert_eq!(theme.ansi_colors.len(), 16);
     }
 
     #[test]
     fn test_one_dark_theme_properties() {
         let theme = TerminalTheme::one_dark();
-        assert_eq!(theme.font_family.as_ref(), "Consolas");
+        assert_eq!(theme.font_family.as_ref(), "JetBrainsMono Nerd Font Mono");
         assert_eq!(theme.ansi_colors.len(), 16);
     }
 
     #[test]
     fn test_nord_theme_properties() {
         let theme = TerminalTheme::nord();
-        assert_eq!(theme.font_family.as_ref(), "Consolas");
+        assert_eq!(theme.font_family.as_ref(), "JetBrainsMono Nerd Font Mono");
         assert_eq!(theme.ansi_colors.len(), 16);
     }
 
@@ -132,7 +132,7 @@ mod terminal_theme_tests {
         ];
 
         for theme in &themes {
-            assert_eq!(theme.font_family.as_ref(), "Consolas");
+            assert_eq!(theme.font_family.as_ref(), "JetBrainsMono Nerd Font Mono");
             assert_eq!(theme.font_size, 14.0);
             assert_eq!(theme.line_height, 1.4);
         }

@@ -135,7 +135,7 @@ impl Default for TerminalConfig {
             bell_enabled: true,
             cursor_style: "block".to_string(),
             cursor_blink: true,
-            font_family: "JetBrains Mono".to_string(),
+            font_family: "JetBrainsMono Nerd Font Mono".to_string(),
             font_size: 14.0,
             line_height: 1.2,
         }
@@ -192,9 +192,8 @@ impl Config {
 
     /// Load configuration from file
     pub fn load() -> Result<Self> {
-        let config_file = Self::config_file().ok_or_else(|| {
-            Error::config("Could not determine config directory")
-        })?;
+        let config_file = Self::config_file()
+            .ok_or_else(|| Error::config("Could not determine config directory"))?;
 
         if !config_file.exists() {
             return Ok(Self::default());
@@ -207,9 +206,8 @@ impl Config {
 
     /// Save configuration to file
     pub fn save(&self) -> Result<()> {
-        let config_dir = Self::config_dir().ok_or_else(|| {
-            Error::config("Could not determine config directory")
-        })?;
+        let config_dir = Self::config_dir()
+            .ok_or_else(|| Error::config("Could not determine config directory"))?;
 
         std::fs::create_dir_all(&config_dir)?;
 
