@@ -9,7 +9,7 @@
 use crate::components::{SharedBounds, TerminalView};
 use crate::theme::TerminalTheme;
 use axon_terminal::alacritty_terminal::term::cell::Flags;
-use axon_terminal::alacritty_terminal::vte::ansi::Color as AnsiColor;
+use axon_terminal::alacritty_terminal::vte::ansi::{Color as AnsiColor, CursorShape};
 use axon_terminal::{IndexedCell, Terminal, TerminalBounds, TerminalContent};
 use gpui::*;
 use std::ops::Range;
@@ -65,6 +65,8 @@ pub struct LayoutState {
     /// Cursor position and style
     cursor_line: i32,
     cursor_col: usize,
+    /// Cursor shape from terminal (Hidden when TUI apps hide cursor)
+    cursor_shape: CursorShape,
     /// Cell dimensions
     cell_width: Pixels,
     line_height: Pixels,
@@ -194,7 +196,10 @@ impl TerminalElement {
     }
 
     /// Build batched text runs from cells
-    fn build_text_runs(&self, content: &TerminalContent) -> Vec<StyledRun> {
+    ///
+    /// `cursor_visible` indicates whether the cursor should be rendered.
+    /// When false (e.g., TUI apps hide cursor), we don't apply special cursor styling to cells.
+    fn build_text_runs(&self, content: &TerminalContent, cursor_visible: bool) -> Vec<StyledRun> {
         let mut runs = Vec::new();
 
         // Group cells by line
@@ -253,7 +258,9 @@ impl TerminalElement {
                 });
 
                 // Check cursor using terminal coordinates (not visual)
-                let is_cursor = term_line == cursor_term_line && col == cursor_col;
+                // Only mark as cursor if cursor is visible (respects DECTCEM mode)
+                let is_cursor =
+                    cursor_visible && term_line == cursor_term_line && col == cursor_col;
                 let is_selected = self
                     .selection
                     .map(|s| s.contains(col, visual_line as usize))
@@ -390,11 +397,15 @@ impl Element for TerminalElement {
         // Get content after potential resize
         let content = self.terminal.read(cx).content().clone();
 
-        // Build text runs
-        let text_runs = self.build_text_runs(&content);
-
         let cursor_line = content.cursor.point.line.0 + content.display_offset as i32;
         let cursor_col = content.cursor.point.column.0;
+        let cursor_shape = content.cursor.shape;
+
+        // Check if cursor is visible (not hidden by TUI apps via DECTCEM escape sequence)
+        let cursor_visible = !matches!(cursor_shape, CursorShape::Hidden);
+
+        // Build text runs, passing cursor visibility to avoid styling hidden cursor cells
+        let text_runs = self.build_text_runs(&content, cursor_visible);
 
         // Calculate cursor bounds for IME positioning (relative to element origin)
         let cursor_bounds = Some(Bounds::new(
@@ -417,6 +428,7 @@ impl Element for TerminalElement {
             text_runs,
             cursor_line,
             cursor_col,
+            cursor_shape,
             cell_width,
             line_height,
             background: self.theme.background,
@@ -573,8 +585,10 @@ impl Element for TerminalElement {
             }
         }
 
-        // Paint cursor (block cursor) - only when there's no marked text
-        if marked_text.is_none() {
+        // Paint cursor - only when there's no marked text and cursor is not hidden
+        // TUI programs (like vim, htop, etc.) send escape sequences to hide cursor
+        // We check cursor_shape to respect these requests
+        if marked_text.is_none() && !matches!(layout.cursor_shape, CursorShape::Hidden) {
             let cursor_x = origin.x + layout.cell_width * layout.cursor_col as f32;
             let cursor_y = origin.y + layout.line_height * layout.cursor_line as f32;
             let cursor_bounds = Bounds::new(

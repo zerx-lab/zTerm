@@ -4,9 +4,27 @@
 //! cross-platform window dragging support.
 
 use gpui::{prelude::*, *};
+use std::path::Path;
+
+// Define simple actions for tab bar interactions
+actions!(title_bar, [NewTab]);
+
+/// Events emitted by the title bar
+#[derive(Debug, Clone)]
+pub enum TitleBarEvent {
+    /// Request to create a new tab
+    NewTab,
+    /// Request to select a specific tab
+    SelectTab(usize),
+    /// Request to close a specific tab
+    CloseTab(usize),
+}
 
 /// Height of the title bar in pixels
 pub const TITLE_BAR_HEIGHT: Pixels = px(32.0);
+
+/// Fixed width for each tab
+const TAB_WIDTH: Pixels = px(160.0);
 
 /// Tab information for display in title bar
 #[derive(Clone)]
@@ -14,6 +32,40 @@ pub struct TabInfo {
     pub id: usize,
     pub title: String,
     pub active: bool,
+    pub shell_name: String,
+    /// Working directory path
+    pub working_directory: String,
+}
+
+impl TabInfo {
+    /// Get a display-friendly directory name
+    /// Shows last directory component, or ~ for home directory
+    pub fn display_directory(&self) -> String {
+        let path = &self.working_directory;
+
+        // Check if it's home directory
+        if let Some(home) = dirs::home_dir() {
+            if path == home.to_string_lossy().as_ref() {
+                return "~".to_string();
+            }
+            // Check if it starts with home directory
+            if let Ok(stripped) = Path::new(path).strip_prefix(&home) {
+                if stripped.as_os_str().is_empty() {
+                    return "~".to_string();
+                }
+                // Return ~/last_component format for subdirectories
+                if let Some(last) = stripped.file_name() {
+                    return format!("~/{}", last.to_string_lossy());
+                }
+            }
+        }
+
+        // Return last path component
+        Path::new(path)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| path.clone())
+    }
 }
 
 /// Platform style enum
@@ -45,6 +97,8 @@ pub struct TitleBar {
     should_move: bool,
 }
 
+impl EventEmitter<TitleBarEvent> for TitleBar {}
+
 impl TitleBar {
     /// Create a new title bar
     pub fn new() -> Self {
@@ -63,6 +117,21 @@ impl TitleBar {
     /// Get the height of the title bar
     pub fn height() -> Pixels {
         TITLE_BAR_HEIGHT
+    }
+
+    /// Handle tab selection
+    fn on_select_tab(&mut self, tab_id: usize, cx: &mut Context<Self>) {
+        cx.emit(TitleBarEvent::SelectTab(tab_id));
+    }
+
+    /// Handle tab close
+    fn on_close_tab(&mut self, tab_id: usize, cx: &mut Context<Self>) {
+        cx.emit(TitleBarEvent::CloseTab(tab_id));
+    }
+
+    /// Handle new tab
+    fn on_new_tab(&mut self, cx: &mut Context<Self>) {
+        cx.emit(TitleBarEvent::NewTab);
     }
 }
 
@@ -146,10 +215,127 @@ impl Render for TitleBar {
                     .px_2()
                     .gap_1()
                     .children(tabs.into_iter().map(|tab| {
+                        let tab_id = tab.id;
                         let is_active = tab.active;
-                        TabItem::new(tab.id, tab.title, is_active)
+                        let display_dir = tab.display_directory();
+
+                        // Colors inspired by modern terminals (Warp, iTerm2, Windows Terminal)
+                        let bg_color = if is_active {
+                            rgb(0x2d2d2d)
+                        } else {
+                            rgb(0x252525)
+                        };
+                        let text_color = if is_active {
+                            rgb(0xe8e8e8)
+                        } else {
+                            rgb(0x808080)
+                        };
+                        let hover_bg = if is_active {
+                            rgb(0x363636)
+                        } else {
+                            rgb(0x2d2d2d)
+                        };
+
+                        div()
+                            .id(ElementId::Name(format!("tab-{}", tab_id).into()))
+                            .flex()
+                            .flex_row()
+                            .items_center()
+                            .justify_between()
+                            .h(px(28.0))
+                            .w(TAB_WIDTH)
+                            .min_w(TAB_WIDTH)
+                            .max_w(TAB_WIDTH)
+                            .px(px(10.0))
+                            .rounded_t_md()
+                            .bg(bg_color)
+                            // Active tab indicator - subtle bottom border
+                            .when(is_active, |el| el.border_b_2().border_color(rgb(0x4a9eff)))
+                            .when(!is_active, |el| el.border_b_1().border_color(rgb(0x3a3a3a)))
+                            .hover(|style| style.bg(hover_bg))
+                            .cursor_pointer()
+                            .occlude()
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
+                                    window.prevent_default();
+                                    cx.stop_propagation();
+                                },
+                            )
+                            .on_click(cx.listener(move |this, _: &ClickEvent, _window, cx| {
+                                this.on_select_tab(tab_id, cx);
+                            }))
+                            // Directory path - takes most space
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .text_sm()
+                                    .text_color(text_color)
+                                    .truncate()
+                                    .overflow_hidden()
+                                    .child(display_dir),
+                            )
+                            // Close button - compact and subtle
+                            .child(
+                                div()
+                                    .id(ElementId::Name(format!("close-tab-{}", tab_id).into()))
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .w(px(18.0))
+                                    .h(px(18.0))
+                                    .ml(px(6.0))
+                                    .rounded(px(4.0))
+                                    .text_xs()
+                                    .text_color(rgb(0x606060))
+                                    .hover(|style| {
+                                        style.bg(rgb(0x4a4a4a)).text_color(rgb(0xd0d0d0))
+                                    })
+                                    .active(|style| style.bg(rgb(0x5a5a5a)))
+                                    .on_mouse_down(
+                                        MouseButton::Left,
+                                        |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
+                                            window.prevent_default();
+                                            cx.stop_propagation();
+                                        },
+                                    )
+                                    .on_click(cx.listener(
+                                        move |this, _: &ClickEvent, _window, cx| {
+                                            cx.stop_propagation();
+                                            this.on_close_tab(tab_id, cx);
+                                        },
+                                    ))
+                                    .child("×"),
+                            )
                     }))
-                    .child(NewTabButton::new()),
+                    // New tab button - minimal style
+                    .child(
+                        div()
+                            .id("new-tab-button")
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .w(px(28.0))
+                            .h(px(28.0))
+                            .ml(px(4.0))
+                            .rounded(px(6.0))
+                            .text_color(rgb(0x606060))
+                            .hover(|style| style.bg(rgb(0x2d2d2d)).text_color(rgb(0xa0a0a0)))
+                            .active(|style| style.bg(rgb(0x3d3d3d)))
+                            .cursor_pointer()
+                            .occlude()
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
+                                    window.prevent_default();
+                                    cx.stop_propagation();
+                                },
+                            )
+                            .on_click(cx.listener(|this, _: &ClickEvent, _window, cx| {
+                                this.on_new_tab(cx);
+                            }))
+                            .child("+"),
+                    ),
             )
             // Spacer
             .child(div().flex_1())
@@ -162,100 +348,6 @@ impl Render for TitleBar {
                     PlatformStyle::Windows => title_bar.child(WindowsWindowControls::new(height)),
                 },
             )
-    }
-}
-
-/// Tab item component
-#[derive(IntoElement)]
-struct TabItem {
-    id: usize,
-    title: String,
-    active: bool,
-}
-
-impl TabItem {
-    fn new(id: usize, title: String, active: bool) -> Self {
-        Self { id, title, active }
-    }
-}
-
-impl RenderOnce for TabItem {
-    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
-        let bg_color = if self.active {
-            rgb(0x2d2d2d)
-        } else {
-            rgb(0x1e1e1e)
-        };
-        let text_color = if self.active {
-            rgb(0xffffff)
-        } else {
-            rgb(0x888888)
-        };
-
-        div()
-            .id(ElementId::Name(format!("tab-{}", self.id).into()))
-            .flex()
-            .items_center()
-            .h(px(28.0))
-            .px_3()
-            .rounded_md()
-            .bg(bg_color)
-            .hover(|style| style.bg(rgb(0x3d3d3d)))
-            .cursor_pointer()
-            // Occlude blocks mouse events from passing through to drag area
-            // This is correct - clicking on tabs should NOT trigger window drag
-            .occlude()
-            .on_mouse_down(
-                MouseButton::Left,
-                |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
-                    window.prevent_default();
-                    cx.stop_propagation();
-                },
-            )
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(text_color)
-                    .max_w(px(120.0))
-                    .truncate()
-                    .child(self.title),
-            )
-    }
-}
-
-/// New tab button component
-#[derive(IntoElement)]
-struct NewTabButton;
-
-impl NewTabButton {
-    fn new() -> Self {
-        Self
-    }
-}
-
-impl RenderOnce for NewTabButton {
-    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
-        div()
-            .id("new-tab-button")
-            .flex()
-            .items_center()
-            .justify_center()
-            .w(px(28.0))
-            .h(px(28.0))
-            .rounded_md()
-            .hover(|style| style.bg(rgb(0x3d3d3d)))
-            .cursor_pointer()
-            // Occlude blocks mouse events from passing through
-            // This is correct - clicking on new tab button should NOT trigger window drag
-            .occlude()
-            .on_mouse_down(
-                MouseButton::Left,
-                |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
-                    window.prevent_default();
-                    cx.stop_propagation();
-                },
-            )
-            .child(div().text_sm().text_color(rgb(0x888888)).child("+"))
     }
 }
 

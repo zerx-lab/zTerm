@@ -11,7 +11,7 @@ actions!(
         Quit,
         NewWindow,
         NewTab,
-        CloseTab,
+        CloseActiveTab,
         NextTab,
         PrevTab,
         SplitHorizontal,
@@ -66,6 +66,16 @@ impl AxonApp {
             KeyBinding::new("cmd-n", NewWindow, None),
             #[cfg(not(target_os = "macos"))]
             KeyBinding::new("ctrl-shift-n", NewWindow, None),
+            // New tab
+            #[cfg(target_os = "macos")]
+            KeyBinding::new("cmd-t", NewTab, Some("MainWindow")),
+            #[cfg(not(target_os = "macos"))]
+            KeyBinding::new("ctrl-t", NewTab, Some("MainWindow")),
+            // Close active tab
+            #[cfg(target_os = "macos")]
+            KeyBinding::new("cmd-w", CloseActiveTab, Some("MainWindow")),
+            #[cfg(not(target_os = "macos"))]
+            KeyBinding::new("ctrl-w", CloseActiveTab, Some("MainWindow")),
         ]);
     }
 

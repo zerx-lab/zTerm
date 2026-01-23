@@ -9,5 +9,6 @@ pub mod components;
 pub mod elements;
 pub mod theme;
 
-pub use components::{TerminalView, TerminalTabBar, TabInfo, TitleBar};
+pub use components::title_bar::{NewTab, TitleBarEvent};
+pub use components::{TabInfo, TerminalTabBar, TerminalView, TitleBar};
 pub use theme::TerminalTheme;

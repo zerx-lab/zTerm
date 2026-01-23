@@ -175,6 +175,9 @@ pub struct Terminal {
     /// Terminal title
     title: String,
 
+    /// Shell program being used
+    shell: String,
+
     /// Whether the process has exited
     exited: bool,
 
@@ -219,7 +222,7 @@ impl Terminal {
         // Setup PTY options - use our detect_shell function for proper defaults
         let shell_program = shell.clone().unwrap_or_else(crate::platform::detect_shell);
 
-        let alac_shell = tty::Shell::new(shell_program, vec![]);
+        let alac_shell = tty::Shell::new(shell_program.clone(), vec![]);
         let mut env: HashMap<String, String> = std::env::vars().collect();
         env.insert("TERM".to_string(), "xterm-256color".to_string());
         env.insert("COLORTERM".to_string(), "truecolor".to_string());
@@ -274,6 +277,7 @@ impl Terminal {
             size,
             working_directory,
             title: "Axon Terminal".to_string(),
+            shell: shell_program,
             exited: false,
             last_content: TerminalContent::default(),
             _event_loop_task: event_loop_task,
@@ -299,6 +303,7 @@ impl Terminal {
             size,
             working_directory,
             title: "Error".to_string(),
+            shell: "unknown".to_string(),
             exited: true,
             last_content: TerminalContent::default(),
             _event_loop_task: Task::ready(Ok(())),
@@ -547,6 +552,20 @@ impl Terminal {
         cx.notify();
     }
 
+    /// Get the shell program being used
+    pub fn shell(&self) -> &str {
+        &self.shell
+    }
+
+    /// Get the shell name (without path)
+    pub fn shell_name(&self) -> String {
+        std::path::Path::new(&self.shell)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(&self.shell)
+            .to_string()
+    }
+
     /// Check if the process has exited
     pub fn has_exited(&self) -> bool {
         self.exited
@@ -601,5 +620,10 @@ impl Terminal {
     /// Check if in alternate screen mode
     pub fn alternate_screen(&self) -> bool {
         self.last_content.mode.contains(TermMode::ALT_SCREEN)
+    }
+
+    /// Check if cursor should be visible (DECTCEM mode)
+    pub fn cursor_visible(&self) -> bool {
+        self.last_content.mode.contains(TermMode::SHOW_CURSOR)
     }
 }

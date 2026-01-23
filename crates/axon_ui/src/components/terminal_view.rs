@@ -161,6 +161,9 @@ impl TerminalView {
 
         // Convert keystroke to terminal input
         if let Some(input) = self.keystroke_to_input(keystroke) {
+            // Auto-scroll to bottom when user types
+            self.scroll_to_bottom(cx);
+
             self.terminal.update(cx, |terminal, _| {
                 terminal.write(input.as_bytes());
             });
@@ -173,6 +176,13 @@ impl TerminalView {
         // Handle Ctrl key combinations
         if keystroke.modifiers.control {
             if let Some(c) = keystroke.key.chars().next() {
+                // Skip certain Ctrl combinations that should be handled by app actions
+                // Ctrl+W: close tab, Ctrl+T: new tab, Ctrl+Tab: switch tab
+                let key_lower = c.to_ascii_lowercase();
+                if key_lower == 'w' || key_lower == 't' {
+                    return None; // Let these bubble up to app-level actions
+                }
+
                 // Ctrl+A through Ctrl+Z
                 if c.is_ascii_lowercase() {
                     let ctrl_char = (c as u8 - b'a' + 1) as char;
@@ -261,6 +271,12 @@ impl TerminalView {
     /// Scroll to bottom (newest content)
     pub fn scroll_to_bottom(&mut self, cx: &mut Context<Self>) {
         self.scroll_offset = 0;
+
+        // Sync terminal display offset
+        self.terminal.update(cx, |terminal, _| {
+            terminal.set_scroll_offset(0);
+        });
+
         cx.notify();
     }
 
@@ -271,6 +287,12 @@ impl TerminalView {
             terminal.content().history_size
         };
         self.scroll_offset = scroll_offset;
+
+        // Sync terminal display offset
+        self.terminal.update(cx, |terminal, _| {
+            terminal.set_scroll_offset(scroll_offset);
+        });
+
         cx.notify();
     }
 
@@ -444,6 +466,9 @@ impl TerminalView {
     /// Commit (send) the given text to the PTY
     pub(crate) fn commit_text(&mut self, text: &str, cx: &mut Context<Self>) {
         if !text.is_empty() {
+            // Auto-scroll to bottom when user types
+            self.scroll_to_bottom(cx);
+
             self.terminal.update(cx, |term, _| {
                 term.write_str(text);
             });

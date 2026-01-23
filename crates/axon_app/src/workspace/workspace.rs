@@ -12,7 +12,6 @@ pub struct TabInfo {
     /// The terminal view
     pub terminal_view: Entity<TerminalView>,
     /// The underlying terminal
-    #[allow(dead_code)]
     pub terminal: Entity<Terminal>,
 }
 
@@ -26,6 +25,9 @@ pub struct Workspace {
 
     /// Default terminal size
     terminal_size: TerminalSize,
+
+    /// Counter for generating unique tab IDs
+    next_tab_id: usize,
 }
 
 impl Workspace {
@@ -35,6 +37,7 @@ impl Workspace {
             tabs: vec![],
             active_tab: 0,
             terminal_size,
+            next_tab_id: 1,
         };
 
         // Create initial tab
@@ -49,9 +52,19 @@ impl Workspace {
 
         let terminal_view = cx.new(|cx| TerminalView::new(terminal.clone(), cx));
 
-        let tab_number = self.tabs.len() + 1;
+        // Get shell name for the tab title
+        let shell_name = {
+            let term = terminal.read(cx);
+            term.shell_name()
+        };
+
+        // Generate tab title with shell name using unique counter
+        let tab_number = self.next_tab_id;
+        self.next_tab_id += 1;
+        let title = format!("{} ({})", shell_name, tab_number);
+
         let tab_info = TabInfo {
-            title: format!("Terminal {}", tab_number),
+            title,
             terminal_view,
             terminal,
         };
@@ -64,10 +77,11 @@ impl Workspace {
     }
 
     /// Close the active tab
-    pub fn close_active_tab(&mut self, cx: &mut Context<Self>) {
+    /// Returns true if this was the last tab (window should close)
+    pub fn close_active_tab(&mut self, cx: &mut Context<Self>) -> bool {
         if self.tabs.len() <= 1 {
-            // Don't close the last tab
-            return;
+            // This is the last tab, signal to close window
+            return true;
         }
 
         self.tabs.remove(self.active_tab);
@@ -77,13 +91,19 @@ impl Workspace {
 
         debug!("Closed tab, active is now {}", self.active_tab);
         cx.notify();
+        false
     }
 
     /// Close a specific tab
-    #[allow(dead_code)]
-    pub fn close_tab(&mut self, index: usize, cx: &mut Context<Self>) {
-        if index >= self.tabs.len() || self.tabs.len() <= 1 {
-            return;
+    /// Returns true if this was the last tab (window should close)
+    pub fn close_tab(&mut self, index: usize, cx: &mut Context<Self>) -> bool {
+        if index >= self.tabs.len() {
+            return false;
+        }
+
+        if self.tabs.len() <= 1 {
+            // This is the last tab, signal to close window
+            return true;
         }
 
         self.tabs.remove(index);
@@ -94,6 +114,7 @@ impl Workspace {
         }
 
         cx.notify();
+        false
     }
 
     /// Switch to the next tab
@@ -119,7 +140,6 @@ impl Workspace {
     }
 
     /// Set the active tab by index
-    #[allow(dead_code)]
     pub fn set_active_tab(&mut self, index: usize, cx: &mut Context<Self>) {
         if index < self.tabs.len() {
             self.active_tab = index;

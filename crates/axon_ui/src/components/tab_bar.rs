@@ -8,6 +8,7 @@ pub struct TabInfo {
     pub id: usize,
     pub title: String,
     pub active: bool,
+    pub shell_name: String,
 }
 
 /// Terminal tab bar component

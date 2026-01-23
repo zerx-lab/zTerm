@@ -1,8 +1,8 @@
 //! Main application window
 
-use crate::app::{CloseTab, NewTab, NextTab, PrevTab};
+use crate::app::{CloseActiveTab, NewTab, NextTab, PrevTab, Quit};
 use crate::workspace::Workspace;
-use axon_ui::{TabInfo, TitleBar};
+use axon_ui::{TabInfo, TitleBar, TitleBarEvent};
 use gpui::*;
 
 /// The main application window
@@ -19,19 +19,85 @@ impl MainWindow {
     pub fn new(workspace: Entity<Workspace>, cx: &mut Context<Self>) -> Self {
         let title_bar = cx.new(|_| TitleBar::new());
 
-        Self { workspace, title_bar }
+        // Subscribe to title bar events
+        cx.subscribe(&title_bar, Self::handle_title_bar_event)
+            .detach();
+
+        Self {
+            workspace,
+            title_bar,
+        }
     }
 
-    fn handle_new_tab(&mut self, _: &NewTab, _window: &mut Window, cx: &mut Context<Self>) {
+    /// Handle events from the title bar
+    fn handle_title_bar_event(
+        &mut self,
+        _title_bar: Entity<TitleBar>,
+        event: &TitleBarEvent,
+        cx: &mut Context<Self>,
+    ) {
+        match event {
+            TitleBarEvent::NewTab => {
+                self.workspace.update(cx, |ws, cx| {
+                    ws.new_tab(cx);
+                });
+            }
+            TitleBarEvent::SelectTab(tab_index) => {
+                let tab_index = *tab_index;
+                self.workspace.update(cx, |ws, cx| {
+                    ws.set_active_tab(tab_index, cx);
+                });
+            }
+            TitleBarEvent::CloseTab(tab_index) => {
+                let tab_index = *tab_index;
+                let should_close_window = self
+                    .workspace
+                    .update(cx, |ws, cx| ws.close_tab(tab_index, cx));
+
+                if should_close_window {
+                    // Dispatch Quit action to close the app
+                    cx.defer(|cx| {
+                        cx.dispatch_action(&Quit);
+                    });
+                }
+            }
+        }
+    }
+
+    /// Focus the active terminal view
+    fn focus_active_terminal(&self, window: &mut Window, cx: &mut Context<Self>) {
+        // Clone the terminal view entity to avoid borrow issues
+        let terminal_view = self.workspace.read(cx).active_terminal_view().cloned();
+
+        if let Some(terminal_view) = terminal_view {
+            terminal_view.update(cx, |view, cx| {
+                window.focus(view.focus_handle_ref(), cx);
+            });
+        }
+    }
+
+    fn handle_new_tab(&mut self, _: &NewTab, window: &mut Window, cx: &mut Context<Self>) {
         self.workspace.update(cx, |ws, cx| {
             ws.new_tab(cx);
         });
+        // Focus the new terminal
+        self.focus_active_terminal(window, cx);
     }
 
-    fn handle_close_tab(&mut self, _: &CloseTab, _window: &mut Window, cx: &mut Context<Self>) {
-        self.workspace.update(cx, |ws, cx| {
-            ws.close_active_tab(cx);
-        });
+    fn handle_close_active_tab(
+        &mut self,
+        _: &CloseActiveTab,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let should_close_window = self.workspace.update(cx, |ws, cx| ws.close_active_tab(cx));
+
+        if should_close_window {
+            window.remove_window();
+        } else {
+            // Refocus the new active terminal view
+            self.focus_active_terminal(window, cx);
+        }
     }
 
     fn handle_next_tab(&mut self, _: &NextTab, _window: &mut Window, cx: &mut Context<Self>) {
@@ -56,10 +122,15 @@ impl Render for MainWindow {
                 .tabs()
                 .iter()
                 .enumerate()
-                .map(|(i, tab)| TabInfo {
-                    id: i,
-                    title: tab.title.clone(),
-                    active: i == workspace.active_tab_index(),
+                .map(|(i, tab)| {
+                    let terminal = tab.terminal.read(cx);
+                    let shell_name = terminal.shell_name();
+                    TabInfo {
+                        id: i,
+                        title: tab.title.clone(),
+                        active: i == workspace.active_tab_index(),
+                        shell_name,
+                    }
                 })
                 .collect();
             let active_tab_index = workspace.active_tab_index();
@@ -89,28 +160,25 @@ impl Render for MainWindow {
             // 进而导致 WM_NCLBUTTONDOWN 被 GPUI 标记为 handled，阻止系统开始拖拽。
             .key_context("MainWindow")
             .on_action(cx.listener(Self::handle_new_tab))
-            .on_action(cx.listener(Self::handle_close_tab))
+            .on_action(cx.listener(Self::handle_close_active_tab))
             .on_action(cx.listener(Self::handle_next_tab))
             .on_action(cx.listener(Self::handle_prev_tab))
             // Title bar with integrated tabs (like Warp Terminal)
             .child(self.title_bar.clone())
             // Terminal content
-            .child(
-                div()
-                    .flex_1()
-                    .overflow_hidden()
-                    .child(if let Some(view) = active_terminal_view {
-                        view.clone().into_any_element()
-                    } else {
-                        div()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .size_full()
-                            .child("No terminal open")
-                            .into_any_element()
-                    }),
-            )
+            .child(div().flex_1().overflow_hidden().child(
+                if let Some(view) = active_terminal_view {
+                    view.clone().into_any_element()
+                } else {
+                    div()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .size_full()
+                        .child("No terminal open")
+                        .into_any_element()
+                },
+            ))
             // Status bar
             .child(
                 div()

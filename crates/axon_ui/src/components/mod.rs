@@ -2,7 +2,7 @@
 
 mod tab_bar;
 mod terminal_view;
-mod title_bar;
+pub mod title_bar;
 
 pub use tab_bar::TerminalTabBar;
 pub use terminal_view::{ImeState, SharedBounds, TerminalView};
