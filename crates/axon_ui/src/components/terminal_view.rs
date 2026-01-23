@@ -145,7 +145,15 @@ impl TerminalView {
         cx: &mut Context<Self>,
     ) {
         match event {
-            TerminalEvent::TitleChanged(_) | TerminalEvent::Resized { .. } => {
+            TerminalEvent::TitleChanged(_) => {
+                cx.notify();
+            }
+            TerminalEvent::Resized { .. } => {
+                // Clear selection when terminal is resized to prevent selection artifacts
+                self.selection_start = None;
+                self.selection_end = None;
+                self.is_selecting = false;
+                // Force full re-render on resize
                 cx.notify();
             }
             TerminalEvent::ProcessExited { .. } => {

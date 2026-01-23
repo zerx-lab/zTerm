@@ -390,11 +390,13 @@ impl Element for TerminalElement {
         let terminal_bounds = TerminalBounds::new(line_height, cell_width, bounds);
 
         // Update terminal size based on actual bounds
+        // This triggers a resize which may generate async Wakeup events
         self.terminal.update(cx, |terminal, _cx| {
             terminal.set_bounds(terminal_bounds);
         });
 
         // Get content after potential resize
+        // Content may be updated asynchronously, but we use current state for rendering
         let content = self.terminal.read(cx).content().clone();
 
         let cursor_line = content.cursor.point.line.0 + content.display_offset as i32;
@@ -456,7 +458,8 @@ impl Element for TerminalElement {
             shared_bounds.line_height.set(Some(layout.line_height));
         }
 
-        // Paint background
+        // Paint background - clear the entire bounds with background color
+        // This is critical to prevent rendering artifacts when size changes
         window.paint_quad(fill(bounds, layout.background));
 
         let origin = bounds.origin;
@@ -479,7 +482,9 @@ impl Element for TerminalElement {
         };
         window.handle_input(&self.focus, terminal_input_handler, cx);
 
-        // Paint text runs
+        // Paint text runs from prepaint state
+        // Note: text_runs were calculated from content that may have been updated
+        // since prepaint. We trust that the content is fresh enough for rendering.
         for run in &layout.text_runs {
             let x = origin.x + layout.cell_width * run.start_col as f32;
             let y = origin.y + layout.line_height * run.line as f32;

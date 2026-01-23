@@ -522,6 +522,10 @@ impl Terminal {
             if let Some(ref pty_tx) = self.pty_tx {
                 let _ = pty_tx.0.send(Msg::Resize(bounds.into()));
             }
+
+            // Force immediate content sync after resize to prevent rendering artifacts
+            // This ensures new size is reflected in content immediately, preventing element ghosting
+            self.sync_content();
         }
     }
 
