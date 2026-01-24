@@ -6,6 +6,8 @@
 pub mod config;
 pub mod error;
 pub mod logging;
+pub mod settings;
 
-pub use config::Config;
+pub use config::{Config, MigrationResult, CONFIG_VERSION};
 pub use error::{Error, Result};
+pub use settings::AppSettings;

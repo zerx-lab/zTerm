@@ -18,5 +18,8 @@ toml.workspace = true
 parking_lot.workspace = true
 once_cell.workspace = true
 dirs.workspace = true
+notify.workspace = true
+gpui.workspace = true
+chrono.workspace = true
 
 [dev-dependencies]

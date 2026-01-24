@@ -5,6 +5,7 @@
 use anyhow::Result;
 use gpui::*;
 use tracing::info;
+use zterm_common::AppSettings;
 
 mod app;
 mod settings;
@@ -19,15 +20,14 @@ fn main() -> Result<()> {
 
     info!("Starting zTerm");
 
-    // Initialize configuration
-    if let Err(e) = zterm_common::Config::init() {
-        tracing::warn!("Failed to load config, using defaults: {}", e);
-    }
-
     // Create and run GPUI application
     let app = Application::new();
 
     app.run(|cx| {
+        // Initialize settings with hot-reload support
+        // This replaces the old Config::init() call
+        AppSettings::init(cx);
+
         // Set up application
         ZTermApp::init(cx);
 

@@ -1,6 +1,7 @@
 //! Terminal theme definitions
 
 use gpui::*;
+use zterm_common::Config;
 
 /// Theme configuration for the terminal
 #[derive(Clone)]
@@ -201,7 +202,55 @@ impl TerminalTheme {
             line_height: 1.4,
         }
     }
+
+    /// Create a theme from configuration
+    ///
+    /// This loads the base theme based on the config's theme name,
+    /// then applies font settings from the config.
+    pub fn from_config(config: &Config) -> Self {
+        // Get base theme from config
+        let mut theme = match config.ui.theme.as_str() {
+            "light" => Self::light(),
+            "dracula" => Self::dracula(),
+            "one_dark" => Self::one_dark(),
+            "nord" => Self::nord(),
+            _ => Self::dark(), // Default to dark theme
+        };
+
+        // Apply terminal-specific settings from config
+        theme.font_family = config.terminal.font_family.clone().into();
+        theme.font_size = config.terminal.font_size;
+        theme.line_height = config.terminal.line_height;
+
+        theme
+    }
+
+    /// Update theme from configuration (hot-reload)
+    ///
+    /// This updates the theme in-place when the configuration changes.
+    pub fn update_from_config(&mut self, config: &Config) {
+        // Get base theme colors from config
+        let base_theme = match config.ui.theme.as_str() {
+            "light" => Self::light(),
+            "dracula" => Self::dracula(),
+            "one_dark" => Self::one_dark(),
+            "nord" => Self::nord(),
+            _ => Self::dark(),
+        };
+
+        // Update colors from base theme
+        self.background = base_theme.background;
+        self.foreground = base_theme.foreground;
+        self.cursor_color = base_theme.cursor_color;
+        self.selection_background = base_theme.selection_background;
+        self.ansi_colors = base_theme.ansi_colors;
+
+        // Update font settings from config
+        self.font_family = config.terminal.font_family.clone().into();
+        self.font_size = config.terminal.font_size;
+        self.line_height = config.terminal.line_height;
+    }
 }
 
-// Note: GPUI component tests require #[gpui::test] and TestAppContext.
-// Basic unit tests are in a separate test file to avoid macro expansion issues.
+// Tests are in the separate test file: tests/ui_tests.rs
+// This avoids stack overflow issues with GPUI macro expansion on Windows.
