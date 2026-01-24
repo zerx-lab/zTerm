@@ -36,6 +36,8 @@ pub struct SharedBounds {
     pub cell_width: Rc<Cell<Option<Pixels>>>,
     /// Line height measured during paint
     pub line_height: Rc<Cell<Option<Pixels>>>,
+    /// Y offset for bottom alignment (content starts at bounds.origin.y + y_offset)
+    pub y_offset: Rc<Cell<Option<Pixels>>>,
 }
 
 impl Default for SharedBounds {
@@ -44,6 +46,7 @@ impl Default for SharedBounds {
             bounds: Rc::new(Cell::new(None)),
             cell_width: Rc::new(Cell::new(None)),
             line_height: Rc::new(Cell::new(None)),
+            y_offset: Rc::new(Cell::new(None)),
         }
     }
 }
@@ -394,14 +397,23 @@ impl TerminalView {
             .map(|h| h.into())
             .unwrap_or(TERMINAL_FONT_SIZE * 1.4);
 
+        // Get y_offset for bottom alignment
+        let y_offset: f32 = self
+            .shared_bounds
+            .y_offset
+            .get()
+            .map(|o| o.into())
+            .unwrap_or(0.0);
+
         // Convert window coordinates to element-relative coordinates
+        // Account for y_offset (content starts at bounds.origin.y + y_offset)
         let x: f32 = position.x.into();
         let y: f32 = position.y.into();
         let origin_x: f32 = bounds.origin.x.into();
         let origin_y: f32 = bounds.origin.y.into();
 
         let relative_x = (x - origin_x).max(0.0);
-        let relative_y = (y - origin_y).max(0.0);
+        let relative_y = (y - origin_y - y_offset).max(0.0);
 
         // Use floor() for more intuitive selection behavior
         // (clicking in the middle of a cell selects that cell)

@@ -77,6 +77,8 @@ pub struct LayoutState {
     cursor_bounds: Option<Bounds<Pixels>>,
     /// Base text style for IME rendering
     base_text_style: TextStyle,
+    /// Y offset for bottom alignment (difference between bounds height and content height)
+    y_offset: Pixels,
 }
 
 /// Terminal element for rendering terminal content
@@ -409,11 +411,18 @@ impl Element for TerminalElement {
         // Build text runs, passing cursor visibility to avoid styling hidden cursor cells
         let text_runs = self.build_text_runs(&content, cursor_visible);
 
-        // Calculate cursor bounds for IME positioning (relative to element origin)
+        // Calculate y_offset for bottom alignment
+        // When num_lines = floor(height/line_height), there may be extra space at the bottom.
+        // We offset the content down so the last line aligns with the bottom of the bounds.
+        let screen_lines = content.screen_lines;
+        let content_height = line_height * screen_lines as f32;
+        let y_offset = bounds.size.height - content_height;
+
+        // Calculate cursor bounds for IME positioning (relative to element origin, with y_offset)
         let cursor_bounds = Some(Bounds::new(
             point(
                 cell_width * cursor_col as f32,
-                line_height * cursor_line as f32,
+                y_offset + line_height * cursor_line as f32,
             ),
             size(cell_width, line_height),
         ));
@@ -437,6 +446,7 @@ impl Element for TerminalElement {
             cursor_color: self.theme.cursor_color,
             cursor_bounds,
             base_text_style,
+            y_offset,
         }
     }
 
@@ -456,6 +466,7 @@ impl Element for TerminalElement {
             shared_bounds.bounds.set(Some(bounds));
             shared_bounds.cell_width.set(Some(layout.cell_width));
             shared_bounds.line_height.set(Some(layout.line_height));
+            shared_bounds.y_offset.set(Some(layout.y_offset));
         }
 
         // Paint background - clear the entire bounds with background color
@@ -485,9 +496,10 @@ impl Element for TerminalElement {
         // Paint text runs from prepaint state
         // Note: text_runs were calculated from content that may have been updated
         // since prepaint. We trust that the content is fresh enough for rendering.
+        // Apply y_offset for bottom alignment
         for run in &layout.text_runs {
             let x = origin.x + layout.cell_width * run.start_col as f32;
-            let y = origin.y + layout.line_height * run.line as f32;
+            let y = origin.y + layout.y_offset + layout.line_height * run.line as f32;
 
             // Paint background if needed
             // Use col_span instead of chars().count() to correctly handle wide characters (CJK)
@@ -593,9 +605,10 @@ impl Element for TerminalElement {
         // Paint cursor - only when there's no marked text and cursor is not hidden
         // TUI programs (like vim, htop, etc.) send escape sequences to hide cursor
         // We check cursor_shape to respect these requests
+        // Apply y_offset for bottom alignment
         if marked_text.is_none() && !matches!(layout.cursor_shape, CursorShape::Hidden) {
             let cursor_x = origin.x + layout.cell_width * layout.cursor_col as f32;
-            let cursor_y = origin.y + layout.line_height * layout.cursor_line as f32;
+            let cursor_y = origin.y + layout.y_offset + layout.line_height * layout.cursor_line as f32;
             let cursor_bounds = Bounds::new(
                 point(cursor_x, cursor_y),
                 size(layout.cell_width, layout.line_height),
