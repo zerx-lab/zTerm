@@ -1,6 +1,8 @@
 //! Terminal view component
 
+use crate::components::{ContextMenuState, ContextMenuView};
 use crate::elements::{ScrollbarElement, ScrollbarState, Selection, TerminalElement};
+use crate::shell_integration::ContextMenuAction;
 use crate::theme::TerminalTheme;
 use gpui::*;
 use std::cell::Cell;
@@ -112,6 +114,12 @@ pub struct TerminalView {
 
     /// Timer task for flushing pending input
     input_flush_task: Option<Task<()>>,
+
+    /// Context menu state for right-click menu
+    context_menu_state: ContextMenuState,
+
+    /// Context menu Entity 和订阅
+    context_menu: Option<(Entity<ContextMenuView>, Point<Pixels>, Subscription)>,
 }
 
 impl TerminalView {
@@ -148,6 +156,8 @@ impl TerminalView {
             scrollbar_state,
             pending_input: Vec::with_capacity(64), // Pre-allocate for typical input
             input_flush_task: None,
+            context_menu_state: ContextMenuState::new(),
+            context_menu: None,
         }
     }
 
@@ -441,10 +451,18 @@ impl TerminalView {
     ) {
         window.focus(&self.focus_handle, cx);
 
+        // Handle right mouse button for context menu
+        if event.button == MouseButton::Right {
+            self.show_context_menu(event.position, window, cx);
+            return;
+        }
+
         // Only handle left mouse button for selection
         if event.button != MouseButton::Left {
             return;
         }
+
+        // Context menu will be automatically hidden by on_mouse_down_out
 
         // Determine selection type based on click count
         let selection_type = match event.click_count {
@@ -700,6 +718,76 @@ impl TerminalView {
         cx.notify();
     }
 
+    /// Show context menu at the specified position
+    fn show_context_menu(&mut self, position: Point<Pixels>, window: &mut Window, cx: &mut Context<Self>) {
+        // 关闭旧菜单（如果存在）
+        self.context_menu = None;
+
+        // 检查是否有选择的文本
+        let has_selection = self.get_selection().is_some();
+
+        // 创建菜单
+        let terminal_view = cx.entity().clone();
+        let menu = cx.new(|cx| {
+            ContextMenuView::new(cx)
+                .item("复制", ContextMenuAction::Copy, has_selection)
+                .item("粘贴", ContextMenuAction::Paste, true)
+                .on_action(move |action, window, menu_cx| {
+                    terminal_view.update(menu_cx, |view, view_cx| {
+                        view.handle_context_menu_action(action, window, view_cx);
+                    });
+                })
+        });
+
+        // 设置焦点
+        window.focus(&menu.focus_handle(cx), cx);
+
+        // 订阅关闭事件
+        let subscription = cx.subscribe_in(&menu, window, |this, _, _: &DismissEvent, window, cx| {
+            this.context_menu = None;
+            window.focus(&this.focus_handle, cx);
+            cx.notify();
+        });
+
+        self.context_menu = Some((menu, position, subscription));
+        cx.notify();
+    }
+
+    /// 处理上下文菜单操作
+    fn handle_context_menu_action(
+        &mut self,
+        action: ContextMenuAction,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match action {
+            ContextMenuAction::Copy => {
+                if let Some(text) = self.terminal.read(cx).selection_text() {
+                    if !text.is_empty() {
+                        cx.write_to_clipboard(ClipboardItem::new_string(text.clone()));
+                        tracing::info!("从右键菜单复制了 {} 字符到剪贴板", text.len());
+                    }
+                }
+            }
+            ContextMenuAction::Paste => {
+                if let Some(item) = cx.read_from_clipboard() {
+                    if let Some(text) = item.text() {
+                        tracing::info!("从右键菜单粘贴了 {} 字符", text.len());
+                        self.commit_text(&text, cx);
+                    }
+                }
+            }
+            _ => {
+                tracing::warn!("不支持的上下文菜单操作: {:?}", action);
+            }
+        }
+    }
+
+    /// Check if context menu is visible
+    pub fn is_context_menu_visible(&self) -> bool {
+        self.context_menu_state.is_visible()
+    }
+
     /// Get the terminal entity
     pub fn terminal(&self) -> &Entity<Terminal> {
         &self.terminal
@@ -917,7 +1005,7 @@ impl Render for TerminalView {
             });
         });
 
-        div()
+        let mut container = div()
             .id("terminal-view")
             .flex()
             .flex_row()
@@ -931,6 +1019,7 @@ impl Render for TerminalView {
             .on_key_down(cx.listener(Self::on_key_down))
             .on_scroll_wheel(cx.listener(Self::on_scroll))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+            .on_mouse_down(MouseButton::Right, cx.listener(Self::on_mouse_down))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             // Terminal action handlers
@@ -963,6 +1052,23 @@ impl Render for TerminalView {
                         self.shared_bounds.clone(),
                     )),
             )
-            .child(scrollbar)
+            .child(scrollbar);
+
+        // 渲染上下文菜单（如果存在）
+        // 使用 deferred 来确保菜单在正确的窗口坐标系中渲染
+        if let Some((menu, position, _)) = &self.context_menu {
+            let menu_clone = menu.clone();
+            let position = *position;
+
+            container = container.child(
+                deferred(
+                    anchored()
+                        .position(position)
+                        .child(menu_clone)
+                )
+            );
+        }
+
+        container
     }
 }

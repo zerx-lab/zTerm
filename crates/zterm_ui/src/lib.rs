@@ -15,9 +15,10 @@ pub use components::title_bar::{
     TITLE_BAR_HEIGHT,
 };
 pub use components::{
-    Copy, GridPosition, ImeState, Paste, ScrollDown, ScrollPageDown, ScrollPageUp,
-    ScrollToBottom, ScrollToTop, ScrollUp, Search, SharedBounds, TabInfo, TerminalTabBar,
-    TerminalView, TitleBar,
+    ContextMenuItem, ContextMenuState, Copy, GridPosition, ImeState, Paste, ScrollDown,
+    ScrollPageDown, ScrollPageUp, ScrollToBottom, ScrollToTop, ScrollUp, Search, SharedBounds,
+    TabInfo, TerminalTabBar, TerminalView, TitleBar,
 };
 pub use elements::{ScrollbarElement, ScrollbarState, Selection, ThumbState};
+pub use shell_integration::ContextMenuAction;
 pub use theme::TerminalTheme;

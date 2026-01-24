@@ -8,6 +8,10 @@ use zterm_terminal::shell_integration::CommandState;
 /// Actions available in the context menu
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContextMenuAction {
+    /// Copy selected text (普通复制)
+    Copy,
+    /// Paste from clipboard (粘贴)
+    Paste,
     /// Copy the command text
     CopyCommand,
     /// Copy the command output
@@ -32,6 +36,8 @@ impl ContextMenuAction {
     /// Get the display label for this action
     pub fn label(&self) -> &str {
         match self {
+            ContextMenuAction::Copy => "Copy",
+            ContextMenuAction::Paste => "Paste",
             ContextMenuAction::CopyCommand => "Copy Command",
             ContextMenuAction::CopyOutput => "Copy Output",
             ContextMenuAction::CopyAll => "Copy All",
@@ -47,6 +53,8 @@ impl ContextMenuAction {
     /// Get a keyboard shortcut hint (if any)
     pub fn shortcut_hint(&self) -> Option<&str> {
         match self {
+            ContextMenuAction::Copy => Some("Ctrl+Shift+C"),
+            ContextMenuAction::Paste => Some("Ctrl+Shift+V"),
             ContextMenuAction::CopyCommand => Some("Ctrl+Shift+C"),
             ContextMenuAction::CopyOutput => Some("Ctrl+Shift+O"),
             ContextMenuAction::RerunCommand => Some("Ctrl+R"),
