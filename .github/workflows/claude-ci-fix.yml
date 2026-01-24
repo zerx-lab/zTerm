@@ -161,6 +161,8 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # 允许 claude bot 触发的工作流运行（CI 可能由 bot 推送触发）
+          allowed_bots: 'claude,github-actions'
           additional_permissions: |
             actions: read
             checks: read
