@@ -180,6 +180,30 @@ jobs:
         env:
           RUSTDOCFLAGS: "-D warnings"
 
+  # Claude 代码审查 (仅 PR)
+  claude-review:
+    name: Claude 代码审查
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
+          plugins: 'code-review@claude-code-plugins'
+          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+
   # 最终状态检查
   ci-success:
     name: CI 通过
@@ -191,15 +215,23 @@ jobs:
       - test
       - coverage
       - docs
+      - claude-review
     runs-on: ubuntu-latest
     steps:
       - name: 检查所有任务状态
         run: |
+          # 核心检查必须通过
           if [[ "${{ needs.code-quality.result }}" != "success" || \
                 "${{ needs.security-audit.result }}" != "success" || \
                 "${{ needs.build.result }}" != "success" || \
                 "${{ needs.test.result }}" != "success" ]]; then
             echo "❌ CI 检查失败"
+            exit 1
+          fi
+          # claude-review 仅在 PR 时运行，skipped 也算通过
+          if [[ "${{ needs.claude-review.result }}" != "success" && \
+                "${{ needs.claude-review.result }}" != "skipped" ]]; then
+            echo "❌ Claude 代码审查失败"
             exit 1
           fi
           echo "✅ 所有 CI 检查通过"
