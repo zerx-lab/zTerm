@@ -32,4 +32,4 @@ config.local.toml
 CLAUDE.md
 
 # Worktrees
-/.worktrees/
+/.worktree/
