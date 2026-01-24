@@ -97,7 +97,7 @@ mod tests {
     fn test_theme_manager_creation() {
         let manager = ThemeManager::new();
         assert_eq!(manager.current_theme.name(), "Default Dark");
-        assert_eq!(manager.registry.all().len(), 3); // Default Dark, GitHub Dark, GitHub Light
+        assert_eq!(manager.registry.all().len(), 5); // Default Dark, GitHub Dark, GitHub Light, Tokyo Night, Tokyo Night Light
     }
 
     #[test]
@@ -112,6 +112,8 @@ mod tests {
         assert!(manager.registry.get("Default Dark").is_some());
         assert!(manager.registry.get("GitHub Dark").is_some());
         assert!(manager.registry.get("GitHub Light").is_some());
+        assert!(manager.registry.get("Tokyo Night").is_some());
+        assert!(manager.registry.get("Tokyo Night Light").is_some());
     }
 
     #[test]
@@ -120,7 +122,7 @@ mod tests {
         let dark_themes = manager.registry.by_appearance(Appearance::Dark);
         let light_themes = manager.registry.by_appearance(Appearance::Light);
 
-        assert_eq!(dark_themes.len(), 2); // Default Dark, GitHub Dark
-        assert_eq!(light_themes.len(), 1); // GitHub Light
+        assert_eq!(dark_themes.len(), 3); // Default Dark, GitHub Dark, Tokyo Night
+        assert_eq!(light_themes.len(), 2); // GitHub Light, Tokyo Night Light
     }
 }
