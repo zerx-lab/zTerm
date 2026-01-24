@@ -45,3 +45,10 @@ ico = "0.5.0"
 resvg = "0.45.1"
 tiny-skia = "0.11.4"
 winresource = "0.1.29"
+
+# WiX Toolset 元数据（用于生成 Windows MSI 安装包）
+[package.metadata.wix]
+upgrade-guid = "6C8E4A2D-1F3B-4E9A-8D2C-9F7E6B5A4C3D"
+path-guid = "1A2B3C4D-5E6F-7A8B-9C0D-1E2F3A4B5C6D"
+license = false
+eula = false

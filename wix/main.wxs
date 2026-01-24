@@ -1,0 +1,191 @@
+<?xml version='1.0' encoding='windows-1252'?>
+<!--
+  WiX Toolset configuration for zTerm Windows Installer
+  Automatically generates MSI package with proper registry entries and shortcuts
+-->
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+
+    <!-- Product definition -->
+    <Product
+        Id='*'
+        Name='zTerm'
+        UpgradeCode='6C8E4A2D-1F3B-4E9A-8D2C-9F7E6B5A4C3D'
+        Manufacturer='zTerm Team'
+        Language='1033'
+        Codepage='1252'
+        Version='$(var.Version)'>
+
+        <!-- Package metadata -->
+        <Package
+            Id='*'
+            Keywords='Terminal,Emulator,Console,Shell'
+            Description='A modern cross-platform terminal emulator built with Rust and GPUI'
+            Manufacturer='zTerm Team'
+            InstallerVersion='450'
+            Languages='1033'
+            Compressed='yes'
+            InstallScope='perMachine'
+            SummaryCodepage='1252'
+        />
+
+        <!-- Media and installation files -->
+        <Media Id='1' Cabinet='zterm.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1' />
+        <Property Id='DiskPrompt' Value='zTerm Installation' />
+
+        <!-- Upgrade logic -->
+        <MajorUpgrade
+            Schedule='afterInstallInitialize'
+            DowngradeErrorMessage='A newer version of zTerm is already installed. Setup will now exit.'
+            AllowSameVersionUpgrades='yes'
+        />
+
+        <!-- Installation directory -->
+        <Directory Id='TARGETDIR' Name='SourceDir'>
+            <Directory Id='ProgramFiles64Folder' Name='PFiles'>
+                <Directory Id='APPLICATIONFOLDER' Name='zTerm'>
+
+                    <!-- Main executable -->
+                    <Component Id='ZTermExecutable' Guid='1A2B3C4D-5E6F-7A8B-9C0D-1E2F3A4B5C6D' Win64='yes'>
+                        <File
+                            Id='ZTermEXE'
+                            Name='zterm.exe'
+                            DiskId='1'
+                            Source='$(var.CargoTargetBinDir)\zterm.exe'
+                            KeyPath='yes'
+                        />
+
+                        <!-- Add to PATH -->
+                        <Environment
+                            Id='PATH'
+                            Name='PATH'
+                            Value='[APPLICATIONFOLDER]'
+                            Permanent='no'
+                            Part='last'
+                            Action='set'
+                            System='yes'
+                        />
+                    </Component>
+
+                    <!-- Assets directory -->
+                    <Directory Id='AssetsFolder' Name='assets'>
+                        <!-- Fonts -->
+                        <Directory Id='FontsFolder' Name='fonts'>
+                            <Component Id='FontsComponent' Guid='2B3C4D5E-6F7A-8B9C-0D1E-2F3A4B5C6D7E' Win64='yes'>
+                                <File Id='DummyFont' Name='.gitkeep' Source='assets\fonts\.gitkeep' KeyPath='yes'/>
+                                <!-- Add actual font files here if needed -->
+                            </Component>
+                        </Directory>
+
+                        <!-- Icons -->
+                        <Directory Id='IconsFolder' Name='icons'>
+                            <Component Id='IconsComponent' Guid='3C4D5E6F-7A8B-9C0D-1E2F-3A4B5C6D7E8F' Win64='yes'>
+                                <File Id='LogoSVG' Name='logo.svg' Source='assets\icons\logo.svg' KeyPath='yes'/>
+                            </Component>
+                        </Directory>
+
+                        <!-- Themes -->
+                        <Directory Id='ThemesFolder' Name='themes'>
+                            <Component Id='ThemesComponent' Guid='4D5E6F7A-8B9C-0D1E-2F3A-4B5C6D7E8F9A' Win64='yes'>
+                                <File Id='DarkTheme' Name='dark.toml' Source='assets\themes\dark.toml' KeyPath='yes'/>
+                                <File Id='DraculaTheme' Name='dracula.toml' Source='assets\themes\dracula.toml'/>
+                            </Component>
+                        </Directory>
+                    </Directory>
+
+                </Directory>
+            </Directory>
+
+            <!-- Start Menu shortcuts -->
+            <Directory Id='ProgramMenuFolder' Name='Programs'>
+                <Directory Id='ApplicationProgramsFolder' Name='zTerm'>
+                    <Component Id='ApplicationShortcut' Guid='5E6F7A8B-9C0D-1E2F-3A4B-5C6D7E8F9A0B' Win64='yes'>
+                        <Shortcut
+                            Id='ApplicationStartMenuShortcut'
+                            Name='zTerm'
+                            Description='Modern Terminal Emulator'
+                            Target='[APPLICATIONFOLDER]zterm.exe'
+                            WorkingDirectory='APPLICATIONFOLDER'
+                            Icon='ProductIcon'
+                        />
+                        <RemoveFolder Id='ApplicationProgramsFolder' On='uninstall'/>
+                        <RegistryValue
+                            Root='HKCU'
+                            Key='Software\zTerm'
+                            Name='installed'
+                            Type='integer'
+                            Value='1'
+                            KeyPath='yes'
+                        />
+                    </Component>
+                </Directory>
+            </Directory>
+
+            <!-- Desktop shortcut (optional) -->
+            <Directory Id='DesktopFolder' Name='Desktop'>
+                <Component Id='DesktopShortcut' Guid='6F7A8B9C-0D1E-2F3A-4B5C-6D7E8F9A0B1C' Win64='yes'>
+                    <Shortcut
+                        Id='ApplicationDesktopShortcut'
+                        Name='zTerm'
+                        Description='Modern Terminal Emulator'
+                        Target='[APPLICATIONFOLDER]zterm.exe'
+                        WorkingDirectory='APPLICATIONFOLDER'
+                        Icon='ProductIcon'
+                    />
+                    <RegistryValue
+                        Root='HKCU'
+                        Key='Software\zTerm'
+                        Name='desktop_shortcut'
+                        Type='integer'
+                        Value='1'
+                        KeyPath='yes'
+                    />
+                </Component>
+            </Directory>
+        </Directory>
+
+        <!-- Features to install -->
+        <Feature
+            Id='MainApplication'
+            Title='zTerm'
+            Description='zTerm Terminal Emulator'
+            Level='1'
+            ConfigurableDirectory='APPLICATIONFOLDER'
+            AllowAdvertise='no'
+            Display='expand'
+            Absent='disallow'>
+
+            <ComponentRef Id='ZTermExecutable' />
+            <ComponentRef Id='FontsComponent' />
+            <ComponentRef Id='IconsComponent' />
+            <ComponentRef Id='ThemesComponent' />
+            <ComponentRef Id='ApplicationShortcut' />
+
+            <Feature
+                Id='DesktopShortcutFeature'
+                Title='Desktop Shortcut'
+                Description='Add a shortcut to the desktop'
+                Level='1'>
+                <ComponentRef Id='DesktopShortcut' />
+            </Feature>
+        </Feature>
+
+        <!-- Product icon -->
+        <Icon Id='ProductIcon' SourceFile='assets\icons\logo.svg'/>
+        <Property Id='ARPPRODUCTICON' Value='ProductIcon' />
+
+        <!-- Add/Remove Programs metadata -->
+        <Property Id='ARPHELPLINK' Value='https://github.com/zerx-lab/zTerm'/>
+        <Property Id='ARPURLINFOABOUT' Value='https://github.com/zerx-lab/zTerm'/>
+        <Property Id='ARPNOREPAIR' Value='yes' Secure='yes' />
+        <Property Id='ARPNOMODIFY' Value='yes' Secure='yes' />
+
+        <!-- UI customization -->
+        <UIRef Id='WixUI_FeatureTree'/>
+        <UIRef Id='WixUI_ErrorProgressText'/>
+
+        <!-- License agreement (optional) -->
+        <!-- <WixVariable Id='WixUILicenseRtf' Value='wix\License.rtf'/> -->
+
+    </Product>
+
+</Wix>

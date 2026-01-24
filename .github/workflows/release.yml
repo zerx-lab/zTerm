@@ -1,0 +1,178 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g., v1.0.0)"
+        required: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # 创建 Release
+  create-release:
+    name: 创建 GitHub Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 获取版本号
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION=${{ github.event.inputs.tag }}
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: 创建 Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          release_name: zTerm ${{ steps.get_version.outputs.version }}
+          draft: false
+          prerelease: false
+
+  # 构建 Linux 和 macOS 二进制文件
+  build-binary:
+    name: 构建二进制 (${{ matrix.target }})
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: zterm
+            asset_name: zterm-linux-x64
+
+          # macOS x64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: zterm
+            asset_name: zterm-macos-x64
+
+          # macOS ARM64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: zterm
+            asset_name: zterm-macos-arm64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Linux 依赖安装
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev
+
+      - name: 构建 Release
+        run: cargo build --release --target ${{ matrix.target }} -p z_term
+
+      - name: 压缩二进制文件
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ${{ matrix.asset_name }}.tar.gz ${{ matrix.artifact_name }}
+          mv ${{ matrix.asset_name }}.tar.gz ../../..
+
+      - name: 上传 Release 资产
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./${{ matrix.asset_name }}.tar.gz
+          asset_name: ${{ matrix.asset_name }}.tar.gz
+          asset_content_type: application/gzip
+
+  # 构建 Windows MSI 安装包
+  build-windows-installer:
+    name: 构建 Windows MSI 安装包
+    needs: create-release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: 安装 cargo-wix
+        run: cargo install cargo-wix
+
+      - name: 构建 Release
+        run: cargo build --release --target x86_64-pc-windows-msvc -p z_term
+
+      - name: 创建 WiX MSI 安装包
+        run: |
+          cd crates/z_term
+          cargo wix --target x86_64-pc-windows-msvc --nocapture --package z_term --output ../../target/wix/zterm-${{ needs.create-release.outputs.version }}-x64.msi
+
+      - name: 上传 MSI 安装包
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./target/wix/zterm-${{ needs.create-release.outputs.version }}-x64.msi
+          asset_name: zterm-${{ needs.create-release.outputs.version }}-x64.msi
+          asset_content_type: application/x-msi
+
+  # 发布到 crates.io (可选)
+  publish-crates:
+    name: 发布到 crates.io
+    needs: [build-binary, build-windows-installer]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Linux 依赖安装
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev
+
+      # 如果要发布到 crates.io，需要设置 CARGO_REGISTRY_TOKEN secret
+      # - name: 发布到 crates.io
+      #   run: |
+      #     cargo publish -p zterm_common
+      #     cargo publish -p zterm_terminal
+      #     cargo publish -p zterm_ui
+      #     cargo publish -p zterm_input
+      #     cargo publish -p z_term
+      #   env:
+      #     CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: 发布成功通知
+        run: |
+          echo "✅ Release ${{ needs.create-release.outputs.version }} 构建完成！"
+          echo "📦 已生成以下资产："
+          echo "  - Windows MSI 安装包"
+          echo "  - Linux x64 二进制"
+          echo "  - macOS x64 二进制"
+          echo "  - macOS ARM64 二进制"
