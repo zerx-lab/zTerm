@@ -9,9 +9,14 @@ no-default-features = false
 
 [advisories]
 # 安全漏洞检查
-# 忽略的安全警告 (如有必要可添加)
+# 忽略的安全警告 - 这些是上游依赖的问题，本项目无法直接修复
 ignore = [
-    # 格式: "RUSTSEC-0000-0000" 或 { id = "RUSTSEC-0000-0000", reason = "原因" }
+    # instant - 被 futures-lite (gpui 依赖) 使用，上游尚未更新
+    { id = "RUSTSEC-2024-0384", reason = "上游依赖 gpui/futures-lite 尚未更新" },
+    # paste - 被 gpui-component, metal, rav1e 使用
+    { id = "RUSTSEC-2024-0436", reason = "上游依赖 gpui-component/metal 尚未更新" },
+    # serial - 被 portable-pty 使用
+    { id = "RUSTSEC-2017-0008", reason = "上游依赖 portable-pty 尚未更新" },
 ]
 
 [licenses]
