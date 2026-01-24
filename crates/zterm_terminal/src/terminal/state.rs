@@ -219,6 +219,19 @@ pub struct Terminal {
 
 impl EventEmitter<TerminalEvent> for Terminal {}
 
+impl Drop for Terminal {
+    fn drop(&mut self) {
+        // Send shutdown signal to PTY event loop thread
+        if let Some(pty_tx) = &self.pty_tx {
+            let _ = pty_tx.0.send(PtyMsg::Shutdown);
+            info!(
+                "Terminal dropped, shutdown signal sent to PTY thread for shell: {}",
+                self.shell
+            );
+        }
+    }
+}
+
 impl Terminal {
     /// Create a new terminal with the given configuration
     pub fn new(
@@ -235,9 +248,15 @@ impl Terminal {
         let (events_tx, events_rx) = futures::channel::mpsc::unbounded();
         let listener = TerminalEventListener(events_tx.clone());
 
-        // Create terminal config
+        // Get scrollback_lines from global config
+        let scrollback_lines = {
+            let config = zterm_common::Config::global();
+            config.terminal.scrollback_lines
+        };
+
+        // Create terminal config with scrollback from settings
         let config = Config {
-            scrolling_history: 10000,
+            scrolling_history: scrollback_lines,
             ..Config::default()
         };
 
@@ -478,6 +497,14 @@ impl Terminal {
         // Take ownership of existing cells Vec to reuse its capacity
         let mut cells = std::mem::take(&mut self.last_content.cells);
         cells.clear();
+
+        // Prevent unbounded memory growth: if capacity is excessive, shrink it
+        // A typical terminal might have ~10,000 cells (100 cols x 100 rows)
+        // We allow up to 100,000 cells before shrinking to avoid memory leaks
+        const MAX_CELLS_CAPACITY: usize = 100_000;
+        if cells.capacity() > MAX_CELLS_CAPACITY {
+            cells.shrink_to(MAX_CELLS_CAPACITY / 2);
+        }
 
         // Preserve terminal_bounds as it's set externally
         let terminal_bounds = self.last_content.terminal_bounds;

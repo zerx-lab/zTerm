@@ -272,8 +272,16 @@ impl TerminalView {
 
         // Take ownership of pending input and send all at once
         let input = std::mem::take(&mut self.pending_input);
-        // Reserve capacity for next batch to avoid repeated allocations
-        self.pending_input.reserve(64);
+
+        // Prevent unbounded capacity growth: only reserve if capacity is reasonable
+        // Typical keyboard input is small, so we cap at 1KB
+        const MAX_INPUT_CAPACITY: usize = 1024;
+        if self.pending_input.capacity() < MAX_INPUT_CAPACITY {
+            self.pending_input.reserve(64);
+        } else {
+            // Reset to smaller capacity if it grew too large
+            self.pending_input = Vec::with_capacity(64);
+        }
 
         self.terminal.update(cx, |terminal, _| {
             terminal.write_owned(input);
