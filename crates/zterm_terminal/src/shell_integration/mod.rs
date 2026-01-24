@@ -47,11 +47,13 @@
 mod event;
 mod extractor;
 mod handler;
+mod inject;
 mod scanner;
 mod zone;
 
 pub use event::ShellEvent;
 pub use extractor::{ContextSummary, OutputSummary, TextBuffer, TextExtractor};
 pub use handler::ShellIntegrationHandler;
+pub use inject::{get_integration_script, supports_integration, POWERSHELL_INTEGRATION};
 pub use scanner::{OscScanner, OscSequence};
 pub use zone::{CommandState, CommandZone, ZoneId, ZoneManager};

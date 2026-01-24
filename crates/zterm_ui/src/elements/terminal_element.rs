@@ -58,10 +58,25 @@ pub struct StyledRun {
     underline: bool,
 }
 
+/// Zone visual information for rendering shell integration blocks
+#[derive(Debug, Clone)]
+pub struct ZoneVisual {
+    /// Start line (relative to visible display)
+    pub start_line: i32,
+    /// End line (relative to visible display, None if still active)
+    pub end_line: Option<i32>,
+    /// Exit code (None if still running)
+    pub exit_code: Option<i32>,
+    /// Whether this is the currently active zone
+    pub is_active: bool,
+}
+
 /// Layout state computed during prepaint
 pub struct LayoutState {
     /// Batched text runs for efficient rendering
     text_runs: Vec<StyledRun>,
+    /// Shell integration zones for block visualization
+    zones: Vec<ZoneVisual>,
     /// Cursor position and style
     cursor_line: i32,
     cursor_col: usize,
@@ -333,6 +348,41 @@ impl TerminalElement {
 
         runs
     }
+
+    /// Build zone visuals for shell integration rendering
+    fn build_zone_visuals(&self, content: &TerminalContent) -> Vec<ZoneVisual> {
+        let mut visuals = Vec::new();
+        let display_offset = content.display_offset as i32;
+        let history_size = content.history_size as i32;
+
+        for zone_info in &content.zones {
+            // Convert absolute scrollback line to visual line
+            let start_line = zone_info.start_line as i32 - history_size + display_offset;
+            let end_line = zone_info.end_line.map(|end| end as i32 - history_size + display_offset);
+
+            // Only render zones that are visible on screen
+            let screen_lines = content.screen_lines as i32;
+            if let Some(end) = end_line {
+                if end < 0 || start_line >= screen_lines {
+                    continue;
+                }
+            } else if start_line >= screen_lines {
+                continue;
+            }
+
+            // Active zones have no end_line yet
+            let is_active = zone_info.end_line.is_none();
+
+            visuals.push(ZoneVisual {
+                start_line,
+                end_line,
+                exit_code: zone_info.exit_code,
+                is_active,
+            });
+        }
+
+        visuals
+    }
 }
 
 impl Element for TerminalElement {
@@ -435,8 +485,12 @@ impl Element for TerminalElement {
             ..Default::default()
         };
 
+        // Build zone visuals for shell integration
+        let zones = self.build_zone_visuals(&content);
+
         LayoutState {
             text_runs,
+            zones,
             cursor_line,
             cursor_col,
             cursor_shape,
@@ -492,6 +546,45 @@ impl Element for TerminalElement {
             cursor_bounds: layout.cursor_bounds.map(|b| b + origin),
         };
         window.handle_input(&self.focus, terminal_input_handler, cx);
+
+        // Paint zone borders for shell integration (Warp-like blocks)
+        for zone in &layout.zones {
+            // Calculate zone bounds
+            let start_y = origin.y + layout.y_offset + layout.line_height * zone.start_line as f32;
+            let end_y = if let Some(end_line) = zone.end_line {
+                origin.y + layout.y_offset + layout.line_height * end_line as f32
+            } else {
+                // Active zone extends to bottom
+                bounds.bottom()
+            };
+
+            // Determine border color based on zone state
+            let border_color = if zone.is_active {
+                // Active zone: blue border with transparency
+                rgba(0x4a9eff80)
+            } else if let Some(exit_code) = zone.exit_code {
+                if exit_code == 0 {
+                    // Success: green border with transparency
+                    rgba(0x73c99180)
+                } else {
+                    // Failure: red border with transparency
+                    rgba(0xf4706780)
+                }
+            } else {
+                // Running: yellow border with transparency
+                rgba(0xdbb32d80)
+            };
+
+            let border_width = px(2.0);
+            let left_x = origin.x;
+
+            // Draw left border (vertical line)
+            let border_bounds = Bounds::new(
+                point(left_x, start_y),
+                size(border_width, end_y - start_y),
+            );
+            window.paint_quad(fill(border_bounds, border_color));
+        }
 
         // Paint text runs from prepaint state
         // Note: text_runs were calculated from content that may have been updated

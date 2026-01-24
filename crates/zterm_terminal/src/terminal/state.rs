@@ -321,6 +321,23 @@ impl Terminal {
 
         info!("Terminal created with shell integration enabled (PTY scanning active)");
 
+        // Auto-inject shell integration script for supported shells
+        if let Some(script) = crate::shell_integration::get_integration_script(&shell_program) {
+            info!("Auto-injecting shell integration for: {}", shell_program);
+            // Send script to PTY
+            if let Err(e) = pty_tx.0.send(PtyMsg::Input(std::borrow::Cow::Borrowed(script.as_bytes()))) {
+                error!("Failed to inject shell integration script: {}", e);
+            } else {
+                // Send Enter to execute the script
+                if let Err(e) = pty_tx.0.send(PtyMsg::Input(std::borrow::Cow::Borrowed(b"\r"))) {
+                    error!("Failed to send Enter after injecting script: {}", e);
+                }
+                info!("Shell integration script injected successfully");
+            }
+        } else {
+            info!("No auto-injection available for shell: {}", shell_program);
+        }
+
         // Create event processing task (batches events like Zed does)
         let event_loop_task = Self::spawn_event_loop(events_rx, osc_rx, cx);
 

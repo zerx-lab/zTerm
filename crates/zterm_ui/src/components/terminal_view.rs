@@ -472,6 +472,15 @@ impl TerminalView {
 
         // Context menu will be automatically hidden by on_mouse_down_out
 
+        // Check if clicking on a shell integration zone (for single click only)
+        if event.click_count == 1 {
+            if let Some((zone_start, zone_end)) = self.zone_at_position(event.position, cx) {
+                // Select entire zone
+                self.select_zone(zone_start, zone_end, cx);
+                return;
+            }
+        }
+
         // Determine selection type based on click count
         let selection_type = match event.click_count {
             0 => return, // This is a release
@@ -631,6 +640,87 @@ impl TerminalView {
         Some(GridPosition { col, row })
     }
 
+    /// Select an entire zone (command block)
+    fn select_zone(&mut self, start_line: usize, end_line: Option<usize>, cx: &mut Context<Self>) {
+        let terminal = self.terminal.read(cx);
+        let content = terminal.content();
+        let display_offset = content.display_offset as i32;
+        let history_size = content.history_size as i32;
+
+        // Convert absolute lines to visual lines
+        let start_visual = start_line as i32 - history_size + display_offset;
+        let end_visual = end_line.map(|end| end as i32 - history_size + display_offset);
+
+        // Set selection in UI
+        self.selection_start = Some(GridPosition {
+            col: 0,
+            row: start_visual as usize,
+        });
+        self.selection_end = Some(GridPosition {
+            col: terminal.size().cols as usize - 1,
+            row: end_visual.unwrap_or(content.screen_lines as i32 - 1) as usize,
+        });
+
+        // Set selection in alacritty (for copy support)
+        self.terminal.update(cx, |terminal, _| {
+            // Select from start of start_line to end of end_line
+            terminal.start_selection(0, start_visual, SelectionSide::Left, SelectionType::Lines);
+            if let Some(end_vis) = end_visual {
+                terminal.update_selection(terminal.size().cols as usize - 1, end_vis, SelectionSide::Right);
+            }
+        });
+
+        cx.notify();
+    }
+
+    /// Get zone at mouse position (for shell integration block selection)
+    fn zone_at_position(&self, position: Point<Pixels>, cx: &Context<Self>) -> Option<(usize, Option<usize>)> {
+        let terminal = self.terminal.read(cx);
+        let content = terminal.content();
+
+        // Get bounds and cell dimensions
+        let bounds = self.shared_bounds.bounds.get()?;
+        let cell_height: f32 = self
+            .shared_bounds
+            .line_height
+            .get()
+            .map(|h| h.into())
+            .unwrap_or(self.theme.font_size * self.theme.line_height);
+        let y_offset: f32 = self
+            .shared_bounds
+            .y_offset
+            .get()
+            .map(|o| o.into())
+            .unwrap_or(0.0);
+
+        // Convert to relative coordinates
+        let y: f32 = position.y.into();
+        let origin_y: f32 = bounds.origin.y.into();
+        let relative_y = (y - origin_y - y_offset).max(0.0);
+        let visual_line = (relative_y / cell_height).floor() as i32;
+
+        // Convert visual line to absolute scrollback line
+        let display_offset = content.display_offset as i32;
+        let history_size = content.history_size as i32;
+        let absolute_line = (visual_line - display_offset + history_size) as usize;
+
+        // Find zone at this line
+        for zone in &content.zones {
+            if zone.start_line <= absolute_line {
+                if let Some(end) = zone.end_line {
+                    if absolute_line < end {
+                        return Some((zone.start_line, zone.end_line));
+                    }
+                } else {
+                    // Active zone (no end yet)
+                    return Some((zone.start_line, None));
+                }
+            }
+        }
+
+        None
+    }
+
     /// Convert mouse position to grid position with side (Left/Right based on cell position)
     ///
     /// This is used for selection to properly track which side of a cell the selection
@@ -734,15 +824,28 @@ impl TerminalView {
         // 检查是否有选择的文本
         let has_selection = self.get_selection().is_some();
 
+        // 检查是否点击在 zone 上
+        let zone_info = self.zone_at_position(position, cx);
+
         // 创建菜单
         let terminal_view = cx.entity().clone();
         let menu = cx.new(|cx| {
-            ContextMenuView::new(cx)
+            let mut menu_view = ContextMenuView::new(cx);
+
+            if let Some((_zone_start, zone_end)) = zone_info {
+                // Zone 菜单项
+                menu_view = menu_view
+                    .item("复制命令", ContextMenuAction::CopyCommand, true)
+                    .item("复制输出", ContextMenuAction::CopyOutput, zone_end.is_some());
+            }
+
+            // 标准菜单项
+            menu_view
                 .item("复制", ContextMenuAction::Copy, has_selection)
                 .item("粘贴", ContextMenuAction::Paste, true)
                 .on_action(move |action, window, menu_cx| {
                     terminal_view.update(menu_cx, |view, view_cx| {
-                        view.handle_context_menu_action(action, window, view_cx);
+                        view.handle_context_menu_action(action, position, window, view_cx);
                     });
                 })
         });
@@ -765,6 +868,7 @@ impl TerminalView {
     fn handle_context_menu_action(
         &mut self,
         action: ContextMenuAction,
+        menu_position: Point<Pixels>,
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -785,10 +889,66 @@ impl TerminalView {
                     }
                 }
             }
+            ContextMenuAction::CopyCommand => {
+                if let Some(command) = self.get_zone_command(menu_position, cx) {
+                    cx.write_to_clipboard(ClipboardItem::new_string(command.clone()));
+                    tracing::info!("复制命令到剪贴板: {}", command);
+                }
+            }
+            ContextMenuAction::CopyOutput => {
+                if let Some(output) = self.get_zone_output(menu_position, cx) {
+                    cx.write_to_clipboard(ClipboardItem::new_string(output.clone()));
+                    tracing::info!("复制输出到剪贴板: {} 字符", output.len());
+                }
+            }
             _ => {
                 tracing::warn!("不支持的上下文菜单操作: {:?}", action);
             }
         }
+    }
+
+    /// Get command text from zone at position
+    fn get_zone_command(&self, position: Point<Pixels>, cx: &Context<Self>) -> Option<String> {
+        let (zone_start, _) = self.zone_at_position(position, cx)?;
+        let terminal = self.terminal.read(cx);
+
+        // Find zone in content
+        for zone_info in &terminal.content().zones {
+            if zone_info.start_line == zone_start {
+                return zone_info.command.clone();
+            }
+        }
+        None
+    }
+
+    /// Get output text from zone at position
+    fn get_zone_output(&self, position: Point<Pixels>, cx: &Context<Self>) -> Option<String> {
+        let (zone_start, zone_end) = self.zone_at_position(position, cx)?;
+        let zone_end = zone_end?; // Must have end line to get output
+
+        let terminal = self.terminal.read(cx);
+        let content = terminal.content();
+
+        // Extract text from visible cells between zone_start+1 and zone_end
+        let mut output = String::new();
+        let display_offset = content.display_offset as i32;
+        let history_size = content.history_size as i32;
+
+        for abs_line in (zone_start + 1)..zone_end {
+            let visual_line = abs_line as i32 - history_size + display_offset;
+
+            // Find cells for this line
+            for cell in &content.cells {
+                if cell.point.line.0 == visual_line - display_offset {
+                    if cell.cell.c != '\0' && !cell.cell.flags.contains(zterm_terminal::alacritty_terminal::term::cell::Flags::WIDE_CHAR_SPACER) {
+                        output.push(cell.cell.c);
+                    }
+                }
+            }
+            output.push('\n');
+        }
+
+        Some(output.trim_end().to_string())
     }
 
     /// Check if context menu is visible
