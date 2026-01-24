@@ -30,3 +30,6 @@ Thumbs.db
 config.local.toml
 /AGENTS.md
 CLAUDE.md
+
+# Worktrees
+/.worktrees/

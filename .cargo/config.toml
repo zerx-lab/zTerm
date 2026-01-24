@@ -3,6 +3,8 @@
 [build]
 # Use all available CPU cores
 jobs = -1
+# Share target directory across all worktrees
+target-dir = "C:/Users/zero/.cargo-target/axon_term"
 
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]
