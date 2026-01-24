@@ -355,10 +355,20 @@ impl TerminalElement {
         let display_offset = content.display_offset as i32;
         let history_size = content.history_size as i32;
 
+        // Get cursor line in visual coordinates (for active zones)
+        let cursor_visual_line = content.cursor.point.line.0 + display_offset;
+
         for zone_info in &content.zones {
             // Convert absolute scrollback line to visual line
             let start_line = zone_info.start_line as i32 - history_size + display_offset;
-            let end_line = zone_info.end_line.map(|end| end as i32 - history_size + display_offset);
+            let mut end_line = zone_info.end_line.map(|end| end as i32 - history_size + display_offset);
+
+            // For active zones (no end_line), use cursor line + 1 as temporary end
+            // This makes the background only highlight up to current output, not the whole viewport
+            let is_active = zone_info.end_line.is_none();
+            if is_active {
+                end_line = Some((cursor_visual_line + 1).max(start_line + 1));
+            }
 
             // Only render zones that are at least partially visible
             let screen_lines = content.screen_lines as i32;
@@ -369,9 +379,6 @@ impl TerminalElement {
             } else if start_line >= screen_lines {
                 continue;
             }
-
-            // Active zones have no end_line yet
-            let is_active = zone_info.end_line.is_none();
 
             visuals.push(ZoneVisual {
                 start_line,
@@ -550,41 +557,45 @@ impl Element for TerminalElement {
         // Paint shell integration zones (VS Code style)
         let gutter_width = px(4.0);
         let gutter_margin_left = px(2.0);
-        let gutter_total_width = gutter_margin_left + gutter_width + px(4.0); // Total reserved space
+        let gutter_total_width = gutter_margin_left + gutter_width + px(4.0);
 
         for zone in &layout.zones {
+            // Calculate zone bounds (end_line should always be Some now)
             let start_y = origin.y + layout.y_offset + layout.line_height * zone.start_line as f32;
-            let end_y = if let Some(end_line) = zone.end_line {
-                origin.y + layout.y_offset + layout.line_height * end_line as f32
-            } else {
-                bounds.bottom()
-            };
+            let end_y = zone.end_line
+                .map(|end_line| origin.y + layout.y_offset + layout.line_height * end_line as f32)
+                .unwrap_or(start_y + layout.line_height); // Fallback: single line
+
+            // Skip if zone has no height
+            if end_y <= start_y {
+                continue;
+            }
 
             // Determine colors based on zone state
             let (gutter_color, bg_color) = if zone.is_active {
-                // Active zone: blue
-                (rgba(0x0078d4_ff), rgba(0x0078d410))
+                // Active zone: blue (more visible for active command)
+                (rgba(0x0078d4_ff), rgba(0x0078d418))
             } else if let Some(exit_code) = zone.exit_code {
                 if exit_code == 0 {
                     // Success: green
-                    (rgba(0x16825d_ff), rgba(0x16825d08))
+                    (rgba(0x16825d_ff), rgba(0x16825d0c))
                 } else {
                     // Failure: red
-                    (rgba(0xf14c4c_ff), rgba(0xf14c4c10))
+                    (rgba(0xf14c4c_ff), rgba(0xf14c4c14))
                 }
             } else {
                 // Running: yellow
-                (rgba(0xcca700_ff), rgba(0xcca70010))
+                (rgba(0xcca700_ff), rgba(0xcca70012))
             };
 
-            // Draw block background (subtle highlight)
+            // Draw block background (subtle highlight for each command block)
             let bg_bounds = Bounds::new(
                 point(origin.x + gutter_total_width, start_y),
                 size(bounds.size.width - gutter_total_width, end_y - start_y),
             );
             window.paint_quad(fill(bg_bounds, bg_color));
 
-            // Draw gutter decoration (vertical line with rounded cap)
+            // Draw gutter decoration (vertical line)
             let gutter_x = origin.x + gutter_margin_left;
             let gutter_bounds = Bounds::new(
                 point(gutter_x, start_y),
