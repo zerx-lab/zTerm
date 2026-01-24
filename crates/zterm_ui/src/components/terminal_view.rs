@@ -2,12 +2,13 @@
 
 use crate::elements::{ScrollbarElement, ScrollbarState, Selection, TerminalElement};
 use crate::theme::TerminalTheme;
-use zterm_terminal::{Terminal, TerminalEvent};
 use gpui::*;
 use std::cell::Cell;
 use std::ops::Range;
 use std::rc::Rc;
 use std::time::Duration;
+use zterm_common::AppSettings;
+use zterm_terminal::{Terminal, TerminalEvent};
 
 /// Input batching interval in milliseconds (matches Zed's approach)
 /// Keyboard events within this window are batched into a single PTY write
@@ -19,11 +20,6 @@ pub struct ImeState {
     /// The text currently being composed (pre-edit text)
     pub marked_text: String,
 }
-
-/// Terminal font family (must match main_window.rs)
-const TERMINAL_FONT_FAMILY: &str = "Consolas";
-/// Terminal font size (must match main_window.rs)
-const TERMINAL_FONT_SIZE: f32 = 14.0;
 
 /// Position in terminal grid (column, row)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,10 +98,17 @@ impl TerminalView {
     /// Create a new terminal view
     pub fn new(terminal: Entity<Terminal>, cx: &mut Context<Self>) -> Self {
         let focus_handle = cx.focus_handle();
-        let theme = TerminalTheme::default();
+
+        // Load theme from configuration
+        let config = AppSettings::global_config(cx);
+        let theme = TerminalTheme::from_config(&config);
 
         // Subscribe to terminal events
         cx.subscribe(&terminal, Self::on_terminal_event).detach();
+
+        // Subscribe to global settings changes for hot-reload
+        cx.observe_global::<AppSettings>(Self::on_settings_changed)
+            .detach();
 
         // Create scrollbar state entity
         let scrollbar_state = cx.new(|_| ScrollbarState::new());
@@ -127,6 +130,18 @@ impl TerminalView {
         }
     }
 
+    /// Handle settings changes (hot-reload)
+    fn on_settings_changed(&mut self, cx: &mut Context<Self>) {
+        let config = AppSettings::global_config(cx);
+        self.theme.update_from_config(&config);
+
+        // Clear cached cell width so it gets remeasured with new font
+        self.cell_width = None;
+
+        tracing::info!("Terminal theme updated from config");
+        cx.notify();
+    }
+
     /// Measure cell width using the text system
     fn measure_cell_width(&mut self, cx: &App) -> Pixels {
         if let Some(width) = self.cell_width {
@@ -135,11 +150,11 @@ impl TerminalView {
 
         let text_system = cx.text_system();
         let font = Font {
-            family: TERMINAL_FONT_FAMILY.into(),
+            family: self.theme.font_family.clone(),
             ..Default::default()
         };
 
-        let font_size = px(TERMINAL_FONT_SIZE);
+        let font_size = px(self.theme.font_size);
         let font_id = text_system.resolve_font(&font);
 
         if let Ok(advance) = text_system.advance(font_id, font_size, 'm') {
@@ -148,7 +163,7 @@ impl TerminalView {
         }
 
         // Fallback to estimated width
-        let fallback = px(TERMINAL_FONT_SIZE * 0.6);
+        let fallback = px(self.theme.font_size * 0.6);
         self.cell_width = Some(fallback);
         fallback
     }
@@ -443,13 +458,13 @@ impl TerminalView {
             .cell_width
             .get()
             .map(|w| w.into())
-            .unwrap_or(TERMINAL_FONT_SIZE * 0.6);
+            .unwrap_or(self.theme.font_size * 0.6);
         let cell_height: f32 = self
             .shared_bounds
             .line_height
             .get()
             .map(|h| h.into())
-            .unwrap_or(TERMINAL_FONT_SIZE * 1.4);
+            .unwrap_or(self.theme.font_size * self.theme.line_height);
 
         // Get y_offset for bottom alignment
         let y_offset: f32 = self
