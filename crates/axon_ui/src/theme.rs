@@ -134,6 +134,18 @@ pub struct ThemeColors {
     pub button_active_background: Hsla,
     /// Status bar 背景色
     pub statusbar_background: Hsla,
+
+    // 菜单颜色
+    /// 菜单背景色
+    pub menu_background: Hsla,
+    /// 菜单边框色
+    pub menu_border: Hsla,
+    /// 菜单项悬停背景色
+    pub menu_item_hover_background: Hsla,
+    /// 菜单项悬停文本色
+    pub menu_item_hover_text: Hsla,
+    /// 禁用菜单项文本色
+    pub menu_item_disabled_text: Hsla,
 }
 
 /// 主题

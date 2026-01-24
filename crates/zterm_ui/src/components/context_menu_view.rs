@@ -3,6 +3,7 @@
 //! 使用 GPUI 渲染可交互的上下文菜单
 
 use crate::shell_integration::ContextMenuAction;
+use axon_ui::ThemeContext;
 use gpui::*;
 
 // 菜单导航 actions
@@ -145,6 +146,10 @@ impl ContextMenuView {
         let action = item.action.clone();
         let enabled = item.enabled;
 
+        // 获取主题颜色
+        let theme = cx.current_theme();
+        let colors = &theme.colors;
+
         let mut base = div()
             .id(("menu-item", index))
             .flex()
@@ -161,10 +166,10 @@ impl ContextMenuView {
         // 根据状态应用样式
         if is_selected && enabled {
             base = base
-                .bg(gpui::rgb(0x2563eb))
-                .text_color(gpui::rgb(0xffffff));
+                .bg(colors.menu_item_hover_background)
+                .text_color(colors.menu_item_hover_text);
         } else if !enabled {
-            base = base.text_color(gpui::rgb(0x9ca3af));
+            base = base.text_color(colors.menu_item_disabled_text);
         }
 
         base = base.on_mouse_down(MouseButton::Left, cx.listener(move |this, _, window, cx| {
@@ -189,7 +194,11 @@ impl ContextMenuView {
         if let Some(ref shortcut) = item.shortcut {
             content = content.child(
                 div()
-                    .text_color(gpui::rgb(0x9ca3af))
+                    .text_color(if is_selected && enabled {
+                        colors.menu_item_hover_text
+                    } else {
+                        colors.text_muted
+                    })
                     .text_size(px(12.))
                     .child(shortcut.clone()),
             );
@@ -209,6 +218,10 @@ impl Focusable for ContextMenuView {
 
 impl Render for ContextMenuView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // 获取主题颜色
+        let theme = cx.current_theme();
+        let colors = &theme.colors;
+
         // 先设置所有 action listeners，避免借用冲突
         let container = div()
             .id("context-menu")
@@ -221,9 +234,9 @@ impl Render for ContextMenuView {
             .on_mouse_down_out(cx.listener(|_this, _event, _window, cx| {
                 cx.emit(DismissEvent);
             }))
-            .bg(gpui::rgb(0xffffff))
+            .bg(colors.menu_background)
             .border_1()
-            .border_color(gpui::rgb(0xe5e7eb))
+            .border_color(colors.menu_border)
             .rounded_md()
             .shadow_lg()
             .min_w(px(200.))

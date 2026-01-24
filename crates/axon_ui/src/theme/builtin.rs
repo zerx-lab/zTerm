@@ -34,6 +34,13 @@ pub fn default_dark() -> Theme {
         button_active_background: hsla(220.0 / 360.0, 0.13, 0.30, 1.0),
         statusbar_background: hsla(220.0 / 360.0, 0.13, 0.14, 1.0), // 状态栏背景
 
+        // 菜单颜色
+        menu_background: hsla(220.0 / 360.0, 0.13, 0.18, 1.0), // 与 surface_background 一致
+        menu_border: hsla(220.0 / 360.0, 0.13, 0.30, 1.0), // 与 border 一致
+        menu_item_hover_background: hsla(207.0 / 360.0, 0.82, 0.66, 1.0), // 蓝色高亮
+        menu_item_hover_text: hsla(0.0, 0.0, 1.0, 1.0), // 白色文本
+        menu_item_disabled_text: hsla(0.0, 0.0, 0.45, 1.0), // 灰色禁用文本
+
         // 终端颜色
         terminal: TerminalColors {
             background: hsla(220.0 / 360.0, 0.13, 0.15, 1.0),
@@ -99,6 +106,13 @@ pub fn github_dark() -> Theme {
         button_active_background: hsla(220.0 / 360.0, 0.13, 0.22, 1.0),
         statusbar_background: hsla(220.0 / 360.0, 0.13, 0.13, 1.0), // 状态栏背景
 
+        // 菜单颜色
+        menu_background: hsla(220.0 / 360.0, 0.13, 0.13, 1.0), // 与 surface_background 一致
+        menu_border: hsla(215.0 / 360.0, 0.12, 0.22, 1.0), // 与 border 一致
+        menu_item_hover_background: hsla(212.0 / 360.0, 0.92, 0.62, 1.0), // GitHub 蓝色高亮
+        menu_item_hover_text: hsla(0.0, 0.0, 1.0, 1.0), // 白色文本
+        menu_item_disabled_text: hsla(217.0 / 360.0, 0.10, 0.50, 1.0), // 灰色禁用文本
+
         terminal: TerminalColors {
             background: hsla(220.0 / 360.0, 0.13, 0.09, 1.0),
             foreground: hsla(210.0 / 360.0, 0.24, 0.88, 1.0),
@@ -160,6 +174,13 @@ pub fn github_light() -> Theme {
         button_hover_background: hsla(210.0 / 360.0, 0.18, 0.90, 1.0),
         button_active_background: hsla(210.0 / 360.0, 0.18, 0.85, 1.0),
         statusbar_background: hsla(210.0 / 360.0, 0.18, 0.95, 1.0), // 状态栏背景
+
+        // 菜单颜色
+        menu_background: hsla(0.0, 0.0, 1.0, 1.0), // 纯白背景
+        menu_border: hsla(210.0 / 360.0, 0.18, 0.85, 1.0), // 与 border 一致
+        menu_item_hover_background: hsla(212.0 / 360.0, 1.0, 0.40, 1.0), // GitHub 蓝色高亮
+        menu_item_hover_text: hsla(0.0, 0.0, 1.0, 1.0), // 白色文本
+        menu_item_disabled_text: hsla(213.0 / 360.0, 0.10, 0.60, 1.0), // 浅灰色禁用文本
 
         terminal: TerminalColors {
             background: hsla(0.0, 0.0, 1.0, 1.0),
@@ -223,6 +244,13 @@ pub fn tokyo_night_dark() -> Theme {
         button_active_background: hsla(234.0 / 360.0, 0.26, 0.28, 1.0),
         statusbar_background: hsla(234.0 / 360.0, 0.20, 0.15, 1.0), // 状态栏背景
 
+        // 菜单颜色
+        menu_background: hsla(234.0 / 360.0, 0.20, 0.16, 1.0), // 与 surface_background 一致
+        menu_border: hsla(234.0 / 360.0, 0.15, 0.25, 1.0), // 与 border 一致
+        menu_item_hover_background: hsla(217.0 / 360.0, 0.92, 0.78, 1.0), // Tokyo Night 蓝色
+        menu_item_hover_text: hsla(234.0 / 360.0, 0.17, 0.13, 1.0), // 深色文本以保持对比
+        menu_item_disabled_text: hsla(225.0 / 360.0, 0.27, 0.64, 1.0), // text_muted 颜色
+
         terminal: TerminalColors {
             background: hsla(234.0 / 360.0, 0.17, 0.13, 1.0), // #1a1b26
             foreground: hsla(232.0 / 360.0, 0.74, 0.85, 1.0), // #c0caf5
@@ -284,6 +312,13 @@ pub fn tokyo_night_light() -> Theme {
         button_hover_background: hsla(240.0 / 360.0, 0.09, 0.78, 1.0),
         button_active_background: hsla(240.0 / 360.0, 0.09, 0.73, 1.0),
         statusbar_background: hsla(240.0 / 360.0, 0.09, 0.83, 1.0), // 状态栏背景
+
+        // 菜单颜色
+        menu_background: hsla(240.0 / 360.0, 0.09, 0.89, 1.0), // 与 surface_background 一致
+        menu_border: hsla(240.0 / 360.0, 0.08, 0.73, 1.0), // 与 border 一致
+        menu_item_hover_background: hsla(221.0 / 360.0, 0.44, 0.37, 1.0), // Tokyo Night Light 蓝色
+        menu_item_hover_text: hsla(0.0, 0.0, 1.0, 1.0), // 白色文本
+        menu_item_disabled_text: hsla(228.0 / 360.0, 0.10, 0.56, 1.0), // text_muted 颜色
 
         terminal: TerminalColors {
             background: hsla(240.0 / 360.0, 0.09, 0.85, 1.0), // #d5d6db

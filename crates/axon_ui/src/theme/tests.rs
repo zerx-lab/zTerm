@@ -61,6 +61,13 @@ fn test_theme_colors() -> ThemeColors {
         button_hover_background: hsla(0.0, 0.0, 0.24, 1.0),
         button_active_background: hsla(0.0, 0.0, 0.30, 1.0),
         statusbar_background: hsla(0.0, 0.0, 0.14, 1.0),
+
+        // 菜单颜色
+        menu_background: hsla(0.0, 0.0, 0.15, 1.0),
+        menu_border: hsla(0.0, 0.0, 0.3, 1.0),
+        menu_item_hover_background: hsla(0.6, 0.82, 0.66, 1.0),
+        menu_item_hover_text: hsla(0.0, 0.0, 1.0, 1.0),
+        menu_item_disabled_text: hsla(0.0, 0.0, 0.4, 1.0),
     }
 }
 
@@ -247,4 +254,16 @@ fn test_semantic_colors_defined() {
     // 验证危险操作颜色都已定义且不透明
     assert_eq!(colors.danger.a, 1.0);
     assert_eq!(colors.danger_foreground.a, 1.0);
+}
+
+#[test]
+fn test_menu_colors_defined() {
+    let colors = test_theme_colors();
+
+    // 验证菜单颜色都已定义且不透明
+    assert_eq!(colors.menu_background.a, 1.0);
+    assert_eq!(colors.menu_border.a, 1.0);
+    assert_eq!(colors.menu_item_hover_background.a, 1.0);
+    assert_eq!(colors.menu_item_hover_text.a, 1.0);
+    assert_eq!(colors.menu_item_disabled_text.a, 1.0);
 }
