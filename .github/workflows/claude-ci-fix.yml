@@ -25,6 +25,8 @@ jobs:
       pr_number: ${{ steps.check.outputs.pr_number }}
       attempt_count: ${{ steps.check.outputs.attempt_count }}
       branch: ${{ steps.check.outputs.branch }}
+      run_id: ${{ steps.get-pr.outputs.run_id }}
+      run_url: ${{ steps.get-pr.outputs.run_url }}
 
     steps:
       - name: Get PR info from workflow_run
@@ -36,6 +38,14 @@ jobs:
             // 获取触发 workflow 的 PR 信息
             const headBranch = context.payload.workflow_run.head_branch;
             const headSha = context.payload.workflow_run.head_sha;
+
+            // 直接从 workflow_run 事件获取 run ID 和 URL
+            const runId = context.payload.workflow_run.id;
+            const runUrl = context.payload.workflow_run.html_url;
+            core.setOutput('run_id', runId);
+            core.setOutput('run_url', runUrl);
+            console.log(`CI Run ID: ${runId}`);
+            console.log(`CI Run URL: ${runUrl}`);
 
             // 查找对应的 PR
             const { data: prs } = await github.rest.pulls.list({
@@ -136,12 +146,14 @@ jobs:
             const prNumber = '${{ needs.check-if-fix-needed.outputs.pr_number }}';
             const attempt = '${{ needs.check-if-fix-needed.outputs.attempt_count }}';
             const maxAttempts = '${{ env.MAX_FIX_ATTEMPTS }}';
+            const runId = '${{ needs.check-if-fix-needed.outputs.run_id }}';
+            const runUrl = '${{ needs.check-if-fix-needed.outputs.run_url }}';
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: parseInt(prNumber),
-              body: `## 🔧 Claude CI Auto-Fix Attempt ${attempt}/${maxAttempts}\n\nAnalyzing CI failures and attempting automatic fix...\n\n⏳ This may take a few minutes.`
+              body: `## 🔧 Claude CI Auto-Fix Attempt ${attempt}/${maxAttempts}\n\nAnalyzing CI failures and attempting automatic fix...\n\n📋 **Failed CI Run**: [#${runId}](${runUrl})\n\n⏳ This may take a few minutes.`
             });
 
       - name: Run Claude Code Fix
@@ -163,12 +175,25 @@ jobs:
             --allowedTools "WebFetch"
             --allowedTools "WebSearch"
           prompt: |
-            CI workflow has failed on this PR. Please:
+            CI workflow has failed on this PR. Here is the failed CI run information:
 
-            1. Use `gh run list --branch ${{ needs.check-if-fix-needed.outputs.branch }} --limit 5` to see recent runs
-            2. Use `gh run view <run-id> --log-failed` to analyze the failure logs
-            3. Identify the root cause of the failure
-            4. Make the necessary code changes to fix the issue
+            - **Run ID**: ${{ needs.check-if-fix-needed.outputs.run_id }}
+            - **Run URL**: ${{ needs.check-if-fix-needed.outputs.run_url }}
+            - **Branch**: ${{ needs.check-if-fix-needed.outputs.branch }}
+
+            Please fix the CI failure:
+
+            1. First, get an overview of the CI run:
+               `gh run view ${{ needs.check-if-fix-needed.outputs.run_id }}`
+
+            2. Get the failed job logs:
+               `gh run view ${{ needs.check-if-fix-needed.outputs.run_id }} --log-failed`
+
+            3. If you need full logs for all jobs:
+               `gh run view ${{ needs.check-if-fix-needed.outputs.run_id }} --log`
+
+            4. Identify the root cause and make necessary code changes
+
             5. Commit and push the fix
 
             Common issues to look for:
