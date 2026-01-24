@@ -520,8 +520,11 @@ impl Config {
     ///
     /// This method:
     /// 1. Creates the config file if it doesn't exist
-    /// 2. Merges missing fields from defaults if the config is outdated
-    /// 3. Creates a backup before any modifications
+    /// 2. Intelligently merges config only if changes are needed:
+    ///    - Adds new configuration fields from defaults
+    ///    - Removes old configuration fields that no longer exist
+    ///    - Preserves user-modified values
+    /// 3. Only creates backup and writes file if actual changes are made
     pub fn load_and_migrate() -> Result<(Self, MigrationResult)> {
         let config_file = Self::config_file()
             .ok_or_else(|| Error::config("Could not determine config directory"))?;
@@ -553,29 +556,37 @@ impl Config {
             .map(|v| v as u32)
             .unwrap_or(0);
 
-        // If version matches, just load normally
-        if user_version == CONFIG_VERSION {
-            let config: Config = toml::from_str(&content)?;
-            return Ok((config, MigrationResult::UpToDate));
-        }
-
-        // Version mismatch - need to migrate
-        info!(
-            "Config version {} is outdated (current: {}), migrating...",
-            user_version, CONFIG_VERSION
-        );
-
-        // Create backup before modifying
-        let backup_path = Self::create_backup(&config_file)?;
-        info!("Created backup at {:?}", backup_path);
-
-        // Merge with defaults
+        // Get default config as TOML value
         let default_str = toml::to_string(&Self::default())
             .map_err(|e| Error::config(format!("Failed to serialize defaults: {}", e)))?;
         let default_value: toml::Value = toml::from_str(&default_str)
             .map_err(|e| Error::config(format!("Failed to parse defaults: {}", e)))?;
 
-        let merged_value = Self::merge_toml_values(default_value, user_value);
+        // Merge with defaults
+        let merged_value = Self::merge_toml_values(default_value, user_value.clone());
+
+        // Check if the merged config is different from the user config
+        let needs_update = user_version != CONFIG_VERSION || !Self::toml_values_equal(&merged_value, &user_value);
+
+        // If no update is needed, just load and return
+        if !needs_update {
+            let config: Config = toml::from_str(&content)?;
+            return Ok((config, MigrationResult::UpToDate));
+        }
+
+        // Changes are needed - log the reason
+        if user_version != CONFIG_VERSION {
+            info!(
+                "Config version {} is outdated (current: {}), migrating...",
+                user_version, CONFIG_VERSION
+            );
+        } else {
+            info!("Config structure differs from defaults, updating...");
+        }
+
+        // Create backup before modifying
+        let backup_path = Self::create_backup(&config_file)?;
+        info!("Created backup at {:?}", backup_path);
 
         // Parse the merged config
         let merged_content = toml::to_string_pretty(&merged_value)
@@ -588,7 +599,7 @@ impl Config {
 
         // Save the migrated config
         config.save()?;
-        info!("Configuration migrated successfully");
+        info!("Configuration updated successfully");
 
         Ok((config, MigrationResult::Migrated { backup_path }))
     }
@@ -608,6 +619,7 @@ impl Config {
     /// - For tables: merge recursively, user values take precedence
     /// - For other types: user value takes precedence if present
     /// - Missing keys in user config are filled from defaults
+    /// - Keys in user config that don't exist in defaults are REMOVED (cleanup old config)
     fn merge_toml_values(default: toml::Value, user: toml::Value) -> toml::Value {
         match (default, user) {
             // Both are tables - merge recursively
@@ -616,16 +628,45 @@ impl Config {
                     if let Some(default_value) = default_table.remove(&key) {
                         // Key exists in both - merge recursively
                         default_table.insert(key, Self::merge_toml_values(default_value, user_value));
-                    } else {
-                        // Key only in user config - keep it (might be custom user setting)
-                        default_table.insert(key, user_value);
                     }
+                    // else: Key only in user config - REMOVE it (old config item that no longer exists)
                 }
                 // Remaining keys from default are kept (new settings)
                 toml::Value::Table(default_table)
             }
             // User value takes precedence for non-table types
             (_default, user) => user,
+        }
+    }
+
+    /// Check if two TOML values are semantically equal
+    ///
+    /// This compares the actual content, ignoring formatting differences
+    fn toml_values_equal(a: &toml::Value, b: &toml::Value) -> bool {
+        match (a, b) {
+            (toml::Value::Table(a_table), toml::Value::Table(b_table)) => {
+                if a_table.len() != b_table.len() {
+                    return false;
+                }
+                for (key, a_value) in a_table {
+                    match b_table.get(key) {
+                        Some(b_value) => {
+                            if !Self::toml_values_equal(a_value, b_value) {
+                                return false;
+                            }
+                        }
+                        None => return false,
+                    }
+                }
+                true
+            }
+            (toml::Value::Array(a_arr), toml::Value::Array(b_arr)) => {
+                if a_arr.len() != b_arr.len() {
+                    return false;
+                }
+                a_arr.iter().zip(b_arr.iter()).all(|(a, b)| Self::toml_values_equal(a, b))
+            }
+            _ => a == b,
         }
     }
 
@@ -760,7 +801,7 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_toml_values_preserves_user_custom_keys() {
+    fn test_merge_toml_values_removes_old_custom_keys() {
         let default: toml::Value = toml::from_str(
             r#"
             [terminal]
@@ -785,11 +826,8 @@ mod tests {
             merged["terminal"]["font_size"].as_float().unwrap(),
             16.0
         );
-        // Custom user key preserved
-        assert_eq!(
-            merged["terminal"]["custom_setting"].as_str().unwrap(),
-            "user defined"
-        );
+        // Custom user key REMOVED (not in defaults)
+        assert!(merged["terminal"].get("custom_setting").is_none());
     }
 
     #[test]
@@ -1094,6 +1132,122 @@ mod tests {
     }
 
     #[test]
+    fn test_toml_values_equal_tables() {
+        let a: toml::Value = toml::from_str(
+            r#"
+            [terminal]
+            font_size = 14.0
+            font_family = "Test"
+            "#,
+        )
+        .unwrap();
+
+        let b: toml::Value = toml::from_str(
+            r#"
+            [terminal]
+            font_size = 14.0
+            font_family = "Test"
+            "#,
+        )
+        .unwrap();
+
+        assert!(Config::toml_values_equal(&a, &b));
+
+        let c: toml::Value = toml::from_str(
+            r#"
+            [terminal]
+            font_size = 16.0
+            font_family = "Test"
+            "#,
+        )
+        .unwrap();
+
+        assert!(!Config::toml_values_equal(&a, &c));
+    }
+
+    #[test]
+    fn test_toml_values_equal_different_keys() {
+        let a: toml::Value = toml::from_str(
+            r#"
+            [terminal]
+            font_size = 14.0
+            "#,
+        )
+        .unwrap();
+
+        let b: toml::Value = toml::from_str(
+            r#"
+            [terminal]
+            font_size = 14.0
+            font_family = "Test"
+            "#,
+        )
+        .unwrap();
+
+        assert!(!Config::toml_values_equal(&a, &b));
+    }
+
+    #[test]
+    fn test_toml_values_equal_arrays() {
+        let a: toml::Value = toml::from_str(
+            r#"
+            items = [1, 2, 3]
+            "#,
+        )
+        .unwrap();
+
+        let b: toml::Value = toml::from_str(
+            r#"
+            items = [1, 2, 3]
+            "#,
+        )
+        .unwrap();
+
+        assert!(Config::toml_values_equal(&a, &b));
+
+        let c: toml::Value = toml::from_str(
+            r#"
+            items = [1, 2]
+            "#,
+        )
+        .unwrap();
+
+        assert!(!Config::toml_values_equal(&a, &c));
+    }
+
+    #[test]
+    fn test_merge_removes_obsolete_sections() {
+        let default: toml::Value = toml::from_str(
+            r#"
+            [terminal]
+            font_size = 14.0
+            [ui]
+            theme = "dark"
+            "#,
+        )
+        .unwrap();
+
+        let user: toml::Value = toml::from_str(
+            r#"
+            [terminal]
+            font_size = 16.0
+            [old_section]
+            some_value = "obsolete"
+            "#,
+        )
+        .unwrap();
+
+        let merged = Config::merge_toml_values(default, user);
+
+        // User value preserved
+        assert_eq!(merged["terminal"]["font_size"].as_float().unwrap(), 16.0);
+        // New section added
+        assert!(merged.get("ui").is_some());
+        // Old section REMOVED
+        assert!(merged.get("old_section").is_none());
+    }
+
+    #[test]
     fn test_migration_adds_new_keybindings() {
         // Simulate old config with only 4 keybindings (version 1)
         let old_config_str = r#"
@@ -1141,6 +1295,63 @@ mod tests {
         assert!(!config.keybindings.paste.is_empty());
         assert!(!config.keybindings.scroll_up.is_empty());
         assert!(!config.keybindings.command_palette.is_empty());
+    }
+
+    #[test]
+    fn test_no_update_when_config_matches_defaults() {
+        // Create a config that matches defaults exactly
+        let default_config = Config::default();
+        let default_str = toml::to_string(&default_config).unwrap();
+        let default_value: toml::Value = toml::from_str(&default_str).unwrap();
+
+        // Simulate user config that's already up to date
+        let user_value = default_value.clone();
+
+        // Merge should produce identical result
+        let merged = Config::merge_toml_values(default_value.clone(), user_value.clone());
+
+        assert!(Config::toml_values_equal(&merged, &user_value));
+        assert!(Config::toml_values_equal(&merged, &default_value));
+    }
+
+    #[test]
+    fn test_update_only_when_needed() {
+        // Scenario 1: Config with matching version and structure - no update needed
+        let current_config_str = toml::to_string(&Config::default()).unwrap();
+        let current_value: toml::Value = toml::from_str(&current_config_str).unwrap();
+
+        let default_str = toml::to_string(&Config::default()).unwrap();
+        let default_value: toml::Value = toml::from_str(&default_str).unwrap();
+
+        let merged = Config::merge_toml_values(default_value.clone(), current_value.clone());
+
+        // Should be equal - no update needed
+        assert!(
+            Config::toml_values_equal(&merged, &current_value),
+            "Config should not change when it matches defaults"
+        );
+
+        // Scenario 2: Config with old field - update needed
+        let old_config: toml::Value = toml::from_str(
+            r#"
+            version = 2
+            [terminal]
+            font_size = 16.0
+            old_field = "should be removed"
+            [ui]
+            theme = "dark"
+            "#,
+        )
+        .unwrap();
+
+        let merged2 = Config::merge_toml_values(default_value.clone(), old_config.clone());
+
+        // Should be different - update needed
+        assert!(
+            !Config::toml_values_equal(&merged2, &old_config),
+            "Config should change when it has obsolete fields"
+        );
+        assert!(merged2["terminal"].get("old_field").is_none());
     }
 
     // ==================== normalize_keybinding Tests ====================
