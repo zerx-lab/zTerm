@@ -7,6 +7,9 @@ license.workspace = true
 rust-version.workspace = true
 description = "Main application for zTerm"
 
+[lints]
+workspace = true
+
 [[bin]]
 name = "zterm"
 path = "src/main.rs"

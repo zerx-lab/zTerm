@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 
+[lints]
+workspace = true
+
 [dependencies]
 gpui.workspace = true
 serde = { version = "1.0", features = ["derive"] }

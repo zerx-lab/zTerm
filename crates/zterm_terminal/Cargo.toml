@@ -7,6 +7,9 @@ license.workspace = true
 rust-version.workspace = true
 description = "Terminal core logic for zTerm"
 
+[lints]
+workspace = true
+
 [dependencies]
 zterm_common.workspace = true
 
