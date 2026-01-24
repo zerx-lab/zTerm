@@ -9,14 +9,12 @@ no-default-features = false
 
 [advisories]
 # 安全漏洞检查
-# 忽略的安全警告 - 这些是上游依赖的问题，本项目无法直接修复
+# 忽略上游传递依赖中的未维护警告（本项目无法直接修复）
 ignore = [
-    # instant - 被 futures-lite (gpui 依赖) 使用，上游尚未更新
-    { id = "RUSTSEC-2024-0384", reason = "上游依赖 gpui/futures-lite 尚未更新" },
-    # paste - 被 gpui-component, metal, rav1e 使用
-    { id = "RUSTSEC-2024-0436", reason = "上游依赖 gpui-component/metal 尚未更新" },
-    # serial - 被 portable-pty 使用
-    { id = "RUSTSEC-2017-0008", reason = "上游依赖 portable-pty 尚未更新" },
+    "RUSTSEC-2024-0384",  # instant - gpui 传递依赖
+    "RUSTSEC-2024-0436",  # paste - gpui-component 传递依赖
+    "RUSTSEC-2017-0008",  # serial - portable-pty 传递依赖
+    "RUSTSEC-2025-0052",  # async-std - gpui 传递依赖
 ]
 
 [licenses]
@@ -27,14 +25,25 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "0BSD",
     "ISC",
     "Unicode-DFS-2016",
     "Unicode-3.0",
     "Zlib",
     "CC0-1.0",
     "MPL-2.0",
+    "NCSA",
+    "WTFPL",
+    "CC-BY-NC-SA-4.0",  # 本项目许可证
 ]
 confidence-threshold = 0.8
+
+# 某些 workspace crate 没有在 Cargo.toml 中声明许可证
+# 使用 clarify 来声明其许可证
+[[licenses.clarify]]
+crate = "axon_ui"
+expression = "MIT"
+license-files = []
 
 # 私有 crate 配置
 [licenses.private]
