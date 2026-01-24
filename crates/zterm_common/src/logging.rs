@@ -140,8 +140,11 @@ pub fn init() -> Result<LogGuard> {
         let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
         // Set up the subscriber with both console and file layers
-        let filter =
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,gpui=warn"));
+        // Filter out GPUI window-related errors that occur during window close
+        // These are harmless race conditions in GPUI's async window handling
+        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+            EnvFilter::new("info,gpui=warn,gpui::window=off,gpui::platform::windows::window=off")
+        });
 
         tracing_subscriber::registry()
             .with(filter)
@@ -168,8 +171,9 @@ pub fn init() -> Result<LogGuard> {
         Some(guard)
     } else {
         // Fallback to console-only logging if we can't determine log directory
-        let filter =
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,gpui=warn"));
+        let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+            EnvFilter::new("info,gpui=warn,gpui::window=off,gpui::platform::windows::window=off")
+        });
 
         tracing_subscriber::registry()
             .with(filter)

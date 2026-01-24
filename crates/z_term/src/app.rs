@@ -177,7 +177,13 @@ impl ZTermApp {
             });
 
             // Create and return the main window view
-            let main_window = cx.new(|cx| MainWindow::new(workspace, cx));
+            let main_window = cx.new(|cx| MainWindow::new(workspace.clone(), cx));
+
+            // Focus the terminal view so keyboard input works immediately
+            if let Some(terminal_view) = workspace.read(cx).active_terminal_view() {
+                let focus_handle = terminal_view.read(cx).focus_handle_ref().clone();
+                window.focus(&focus_handle, cx);
+            }
 
             // Show window after content is ready to avoid transparent flash
             window.activate_window();
