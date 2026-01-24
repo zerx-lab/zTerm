@@ -44,6 +44,7 @@ windows.workspace = true
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
+alacritty_terminal.workspace = true
 
 [[bench]]
 name = "terminal_benchmarks"

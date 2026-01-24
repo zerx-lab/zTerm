@@ -8,8 +8,14 @@ use crate::shell_integration::{OscScanner, OscSequence};
 use alacritty_terminal::event::{Event as AlacTermEvent, EventListener, OnResize, WindowSize};
 use alacritty_terminal::sync::FairMutex;
 use alacritty_terminal::term::Term;
-use alacritty_terminal::tty::{self, ChildEvent, EventedPty};
+use alacritty_terminal::tty::{ChildEvent, EventedPty};
 use polling::{Event as PollingEvent, Events, PollMode};
+
+/// Token for PTY read/write events (matches alacritty's internal value)
+const PTY_READ_WRITE_TOKEN: usize = 0;
+
+/// Token for child process events (matches alacritty's internal value)
+const PTY_CHILD_EVENT_TOKEN: usize = 1;
 use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::io::{self, ErrorKind, Read, Write};
@@ -281,7 +287,7 @@ where
 
                     for event in events.iter() {
                         match event.key {
-                            tty::PTY_CHILD_EVENT_TOKEN => {
+                            PTY_CHILD_EVENT_TOKEN => {
                                 if let Some(ChildEvent::Exited(code)) = self.pty.next_child_event() {
                                     if let Some(code) = code {
                                         self.event_proxy.send_event(AlacTermEvent::ChildExit(code));
@@ -295,7 +301,7 @@ where
                                 }
                             }
 
-                            tty::PTY_READ_WRITE_TOKEN => {
+                            PTY_READ_WRITE_TOKEN => {
                                 if event.is_interrupt() {
                                     continue;
                                 }
