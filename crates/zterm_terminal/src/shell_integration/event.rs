@@ -8,22 +8,13 @@ use super::zone::ZoneId;
 #[derive(Debug, Clone, PartialEq)]
 pub enum ShellEvent {
     /// A new prompt has started (OSC 133 A)
-    PromptStarted {
-        zone_id: ZoneId,
-        line: usize,
-    },
+    PromptStarted { zone_id: ZoneId, line: usize },
 
     /// User started entering a command (OSC 133 B)
-    CommandStarted {
-        zone_id: ZoneId,
-        line: usize,
-    },
+    CommandStarted { zone_id: ZoneId, line: usize },
 
     /// Command execution has begun (OSC 133 C)
-    CommandExecuting {
-        zone_id: ZoneId,
-        line: usize,
-    },
+    CommandExecuting { zone_id: ZoneId, line: usize },
 
     /// Command execution has finished (OSC 133 D)
     CommandFinished {
@@ -33,15 +24,10 @@ pub enum ShellEvent {
     },
 
     /// Command text was captured (OSC 633 E)
-    CommandCaptured {
-        zone_id: ZoneId,
-        command: String,
-    },
+    CommandCaptured { zone_id: ZoneId, command: String },
 
     /// Working directory changed (OSC 7)
-    WorkingDirectoryChanged {
-        path: String,
-    },
+    WorkingDirectoryChanged { path: String },
 }
 
 impl ShellEvent {

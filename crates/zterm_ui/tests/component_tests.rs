@@ -85,13 +85,15 @@ mod terminal_tab_bar_tests {
     fn test_tab_bar_with_many_tabs() {
         // Test with 100 tabs to verify no overflow issues
         let tabs: Vec<TabInfo> = (0..100)
-            .map(|i| TabInfo::new(
-                i,
-                format!("Terminal {}", i),
-                i == 0,
-                "bash".to_string(),
-                format!("/home/user/project{}", i),
-            ))
+            .map(|i| {
+                TabInfo::new(
+                    i,
+                    format!("Terminal {}", i),
+                    i == 0,
+                    "bash".to_string(),
+                    format!("/home/user/project{}", i),
+                )
+            })
             .collect();
         let tab_bar = TerminalTabBar::new().tabs(tabs);
         assert!(std::mem::size_of_val(&tab_bar) > 0);
@@ -698,13 +700,7 @@ mod tab_info_boundary_tests {
 
     #[test]
     fn test_tab_info_empty_strings() {
-        let tab = TabInfo::new(
-            0,
-            String::new(),
-            true,
-            String::new(),
-            String::new(),
-        );
+        let tab = TabInfo::new(0, String::new(), true, String::new(), String::new());
         assert!(tab.title.is_empty());
         assert!(tab.shell_name.is_empty());
         assert!(tab.working_directory.is_empty());

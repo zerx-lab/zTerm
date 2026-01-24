@@ -566,7 +566,8 @@ impl Config {
         let merged_value = Self::merge_toml_values(default_value, user_value.clone());
 
         // Check if the merged config is different from the user config
-        let needs_update = user_version != CONFIG_VERSION || !Self::toml_values_equal(&merged_value, &user_value);
+        let needs_update =
+            user_version != CONFIG_VERSION || !Self::toml_values_equal(&merged_value, &user_value);
 
         // If no update is needed, just load and return
         if !needs_update {
@@ -627,7 +628,8 @@ impl Config {
                 for (key, user_value) in user_table {
                     if let Some(default_value) = default_table.remove(&key) {
                         // Key exists in both - merge recursively
-                        default_table.insert(key, Self::merge_toml_values(default_value, user_value));
+                        default_table
+                            .insert(key, Self::merge_toml_values(default_value, user_value));
                     }
                     // else: Key only in user config - REMOVE it (old config item that no longer exists)
                 }
@@ -664,7 +666,10 @@ impl Config {
                 if a_arr.len() != b_arr.len() {
                     return false;
                 }
-                a_arr.iter().zip(b_arr.iter()).all(|(a, b)| Self::toml_values_equal(a, b))
+                a_arr
+                    .iter()
+                    .zip(b_arr.iter())
+                    .all(|(a, b)| Self::toml_values_equal(a, b))
             }
             _ => a == b,
         }
@@ -757,10 +762,7 @@ mod tests {
         let merged = Config::merge_toml_values(default, user);
 
         // User value should be preserved
-        assert_eq!(
-            merged["terminal"]["font_size"].as_float().unwrap(),
-            18.0
-        );
+        assert_eq!(merged["terminal"]["font_size"].as_float().unwrap(), 18.0);
         // Missing value should be filled from default
         assert_eq!(
             merged["terminal"]["font_family"].as_str().unwrap(),
@@ -792,10 +794,7 @@ mod tests {
         let merged = Config::merge_toml_values(default, user);
 
         // User value preserved
-        assert_eq!(
-            merged["terminal"]["font_size"].as_float().unwrap(),
-            16.0
-        );
+        assert_eq!(merged["terminal"]["font_size"].as_float().unwrap(), 16.0);
         // Missing section added from default
         assert_eq!(merged["ui"]["theme"].as_str().unwrap(), "dark");
     }
@@ -822,10 +821,7 @@ mod tests {
         let merged = Config::merge_toml_values(default, user);
 
         // User value preserved
-        assert_eq!(
-            merged["terminal"]["font_size"].as_float().unwrap(),
-            16.0
-        );
+        assert_eq!(merged["terminal"]["font_size"].as_float().unwrap(), 16.0);
         // Custom user key REMOVED (not in defaults)
         assert!(merged["terminal"].get("custom_setting").is_none());
     }
@@ -854,10 +850,7 @@ mod tests {
         let merged = Config::merge_toml_values(default, user);
 
         // User value preserved
-        assert_eq!(
-            merged["outer"]["inner"]["key1"].as_str().unwrap(),
-            "user1"
-        );
+        assert_eq!(merged["outer"]["inner"]["key1"].as_str().unwrap(), "user1");
         // Default value filled
         assert_eq!(
             merged["outer"]["inner"]["key2"].as_str().unwrap(),
@@ -924,7 +917,7 @@ mod tests {
 
     #[test]
     fn test_config_version_constant() {
-        assert!(CONFIG_VERSION >= 1);
+        const { assert!(CONFIG_VERSION >= 1) };
     }
 
     // ==================== Keybindings Tests ====================
@@ -935,52 +928,136 @@ mod tests {
 
         // System
         assert!(!kb.quit.is_empty(), "quit keybinding should not be empty");
-        assert!(!kb.new_window.is_empty(), "new_window keybinding should not be empty");
+        assert!(
+            !kb.new_window.is_empty(),
+            "new_window keybinding should not be empty"
+        );
 
         // Tab management
-        assert!(!kb.new_tab.is_empty(), "new_tab keybinding should not be empty");
-        assert!(!kb.close_tab.is_empty(), "close_tab keybinding should not be empty");
-        assert!(!kb.next_tab.is_empty(), "next_tab keybinding should not be empty");
-        assert!(!kb.prev_tab.is_empty(), "prev_tab keybinding should not be empty");
+        assert!(
+            !kb.new_tab.is_empty(),
+            "new_tab keybinding should not be empty"
+        );
+        assert!(
+            !kb.close_tab.is_empty(),
+            "close_tab keybinding should not be empty"
+        );
+        assert!(
+            !kb.next_tab.is_empty(),
+            "next_tab keybinding should not be empty"
+        );
+        assert!(
+            !kb.prev_tab.is_empty(),
+            "prev_tab keybinding should not be empty"
+        );
 
         // Window operations
-        assert!(!kb.toggle_fullscreen.is_empty(), "toggle_fullscreen keybinding should not be empty");
+        assert!(
+            !kb.toggle_fullscreen.is_empty(),
+            "toggle_fullscreen keybinding should not be empty"
+        );
 
         // Split pane
-        assert!(!kb.split_horizontal.is_empty(), "split_horizontal keybinding should not be empty");
-        assert!(!kb.split_vertical.is_empty(), "split_vertical keybinding should not be empty");
+        assert!(
+            !kb.split_horizontal.is_empty(),
+            "split_horizontal keybinding should not be empty"
+        );
+        assert!(
+            !kb.split_vertical.is_empty(),
+            "split_vertical keybinding should not be empty"
+        );
 
         // Zoom
-        assert!(!kb.zoom_in.is_empty(), "zoom_in keybinding should not be empty");
-        assert!(!kb.zoom_out.is_empty(), "zoom_out keybinding should not be empty");
-        assert!(!kb.reset_zoom.is_empty(), "reset_zoom keybinding should not be empty");
+        assert!(
+            !kb.zoom_in.is_empty(),
+            "zoom_in keybinding should not be empty"
+        );
+        assert!(
+            !kb.zoom_out.is_empty(),
+            "zoom_out keybinding should not be empty"
+        );
+        assert!(
+            !kb.reset_zoom.is_empty(),
+            "reset_zoom keybinding should not be empty"
+        );
 
         // Terminal operations
         assert!(!kb.copy.is_empty(), "copy keybinding should not be empty");
         assert!(!kb.paste.is_empty(), "paste keybinding should not be empty");
-        assert!(!kb.search.is_empty(), "search keybinding should not be empty");
+        assert!(
+            !kb.search.is_empty(),
+            "search keybinding should not be empty"
+        );
 
         // Scrolling
-        assert!(!kb.scroll_up.is_empty(), "scroll_up keybinding should not be empty");
-        assert!(!kb.scroll_down.is_empty(), "scroll_down keybinding should not be empty");
-        assert!(!kb.scroll_page_up.is_empty(), "scroll_page_up keybinding should not be empty");
-        assert!(!kb.scroll_page_down.is_empty(), "scroll_page_down keybinding should not be empty");
-        assert!(!kb.scroll_to_top.is_empty(), "scroll_to_top keybinding should not be empty");
-        assert!(!kb.scroll_to_bottom.is_empty(), "scroll_to_bottom keybinding should not be empty");
+        assert!(
+            !kb.scroll_up.is_empty(),
+            "scroll_up keybinding should not be empty"
+        );
+        assert!(
+            !kb.scroll_down.is_empty(),
+            "scroll_down keybinding should not be empty"
+        );
+        assert!(
+            !kb.scroll_page_up.is_empty(),
+            "scroll_page_up keybinding should not be empty"
+        );
+        assert!(
+            !kb.scroll_page_down.is_empty(),
+            "scroll_page_down keybinding should not be empty"
+        );
+        assert!(
+            !kb.scroll_to_top.is_empty(),
+            "scroll_to_top keybinding should not be empty"
+        );
+        assert!(
+            !kb.scroll_to_bottom.is_empty(),
+            "scroll_to_bottom keybinding should not be empty"
+        );
 
         // Other
-        assert!(!kb.command_palette.is_empty(), "command_palette keybinding should not be empty");
+        assert!(
+            !kb.command_palette.is_empty(),
+            "command_palette keybinding should not be empty"
+        );
 
         // Tab switching
-        assert!(!kb.goto_tab_1.is_empty(), "goto_tab_1 keybinding should not be empty");
-        assert!(!kb.goto_tab_2.is_empty(), "goto_tab_2 keybinding should not be empty");
-        assert!(!kb.goto_tab_3.is_empty(), "goto_tab_3 keybinding should not be empty");
-        assert!(!kb.goto_tab_4.is_empty(), "goto_tab_4 keybinding should not be empty");
-        assert!(!kb.goto_tab_5.is_empty(), "goto_tab_5 keybinding should not be empty");
-        assert!(!kb.goto_tab_6.is_empty(), "goto_tab_6 keybinding should not be empty");
-        assert!(!kb.goto_tab_7.is_empty(), "goto_tab_7 keybinding should not be empty");
-        assert!(!kb.goto_tab_8.is_empty(), "goto_tab_8 keybinding should not be empty");
-        assert!(!kb.goto_tab_9.is_empty(), "goto_tab_9 keybinding should not be empty");
+        assert!(
+            !kb.goto_tab_1.is_empty(),
+            "goto_tab_1 keybinding should not be empty"
+        );
+        assert!(
+            !kb.goto_tab_2.is_empty(),
+            "goto_tab_2 keybinding should not be empty"
+        );
+        assert!(
+            !kb.goto_tab_3.is_empty(),
+            "goto_tab_3 keybinding should not be empty"
+        );
+        assert!(
+            !kb.goto_tab_4.is_empty(),
+            "goto_tab_4 keybinding should not be empty"
+        );
+        assert!(
+            !kb.goto_tab_5.is_empty(),
+            "goto_tab_5 keybinding should not be empty"
+        );
+        assert!(
+            !kb.goto_tab_6.is_empty(),
+            "goto_tab_6 keybinding should not be empty"
+        );
+        assert!(
+            !kb.goto_tab_7.is_empty(),
+            "goto_tab_7 keybinding should not be empty"
+        );
+        assert!(
+            !kb.goto_tab_8.is_empty(),
+            "goto_tab_8 keybinding should not be empty"
+        );
+        assert!(
+            !kb.goto_tab_9.is_empty(),
+            "goto_tab_9 keybinding should not be empty"
+        );
     }
 
     #[test]
@@ -992,20 +1069,46 @@ mod tests {
 
         use ConfigurableAction::*;
         let all_actions = [
-            Quit, NewWindow,
-            NewTab, CloseTab, NextTab, PrevTab,
+            Quit,
+            NewWindow,
+            NewTab,
+            CloseTab,
+            NextTab,
+            PrevTab,
             ToggleFullscreen,
-            SplitHorizontal, SplitVertical,
-            ZoomIn, ZoomOut, ResetZoom,
-            Copy, Paste, Search,
-            ScrollUp, ScrollDown, ScrollPageUp, ScrollPageDown, ScrollToTop, ScrollToBottom,
+            SplitHorizontal,
+            SplitVertical,
+            ZoomIn,
+            ZoomOut,
+            ResetZoom,
+            Copy,
+            Paste,
+            Search,
+            ScrollUp,
+            ScrollDown,
+            ScrollPageUp,
+            ScrollPageDown,
+            ScrollToTop,
+            ScrollToBottom,
             CommandPalette,
-            GotoTab1, GotoTab2, GotoTab3, GotoTab4, GotoTab5, GotoTab6, GotoTab7, GotoTab8, GotoTab9,
+            GotoTab1,
+            GotoTab2,
+            GotoTab3,
+            GotoTab4,
+            GotoTab5,
+            GotoTab6,
+            GotoTab7,
+            GotoTab8,
+            GotoTab9,
         ];
 
         for action in all_actions {
             let binding = kb.get_keybinding(action);
-            assert!(!binding.is_empty(), "Action {:?} should have a non-empty keybinding", action);
+            assert!(
+                !binding.is_empty(),
+                "Action {:?} should have a non-empty keybinding",
+                action
+            );
         }
     }
 
@@ -1019,7 +1122,11 @@ mod tests {
 
         // Verify all entries have non-empty bindings
         for (action, binding) in &all {
-            assert!(!binding.is_empty(), "Action {:?} has empty binding in all_keybindings", action);
+            assert!(
+                !binding.is_empty(),
+                "Action {:?} has empty binding in all_keybindings",
+                action
+            );
         }
     }
 
@@ -1058,12 +1165,31 @@ mod tests {
             let binding_lower = binding.to_lowercase();
 
             // Check that it's not just whitespace
-            assert!(!binding.trim().is_empty(), "Action {:?} has whitespace-only binding", action);
+            assert!(
+                !binding.trim().is_empty(),
+                "Action {:?} has whitespace-only binding",
+                action
+            );
 
             // Check for common typos or invalid formats
-            assert!(!binding_lower.contains("++"), "Action {:?} has invalid '++' in binding: {}", action, binding);
-            assert!(!binding_lower.starts_with('+'), "Action {:?} binding starts with '+': {}", action, binding);
-            assert!(!binding_lower.ends_with('+'), "Action {:?} binding ends with '+': {}", action, binding);
+            assert!(
+                !binding_lower.contains("++"),
+                "Action {:?} has invalid '++' in binding: {}",
+                action,
+                binding
+            );
+            assert!(
+                !binding_lower.starts_with('+'),
+                "Action {:?} binding starts with '+': {}",
+                action,
+                binding
+            );
+            assert!(
+                !binding_lower.ends_with('+'),
+                "Action {:?} binding ends with '+': {}",
+                action,
+                binding
+            );
         }
     }
 
@@ -1075,7 +1201,8 @@ mod tests {
         let toml_str = toml::to_string_pretty(&kb).expect("Failed to serialize keybindings");
 
         // Deserialize back
-        let parsed: KeybindingsConfig = toml::from_str(&toml_str).expect("Failed to deserialize keybindings");
+        let parsed: KeybindingsConfig =
+            toml::from_str(&toml_str).expect("Failed to deserialize keybindings");
 
         // Verify all values match
         assert_eq!(kb.quit, parsed.quit);
@@ -1116,13 +1243,37 @@ mod tests {
         // Ensure all ConfigurableAction variants have Debug impl
         use ConfigurableAction::*;
         let actions = [
-            Quit, NewWindow, NewTab, CloseTab, NextTab, PrevTab,
-            ToggleFullscreen, SplitHorizontal, SplitVertical,
-            ZoomIn, ZoomOut, ResetZoom,
-            Copy, Paste, Search,
-            ScrollUp, ScrollDown, ScrollPageUp, ScrollPageDown, ScrollToTop, ScrollToBottom,
+            Quit,
+            NewWindow,
+            NewTab,
+            CloseTab,
+            NextTab,
+            PrevTab,
+            ToggleFullscreen,
+            SplitHorizontal,
+            SplitVertical,
+            ZoomIn,
+            ZoomOut,
+            ResetZoom,
+            Copy,
+            Paste,
+            Search,
+            ScrollUp,
+            ScrollDown,
+            ScrollPageUp,
+            ScrollPageDown,
+            ScrollToTop,
+            ScrollToBottom,
             CommandPalette,
-            GotoTab1, GotoTab2, GotoTab3, GotoTab4, GotoTab5, GotoTab6, GotoTab7, GotoTab8, GotoTab9,
+            GotoTab1,
+            GotoTab2,
+            GotoTab3,
+            GotoTab4,
+            GotoTab5,
+            GotoTab6,
+            GotoTab7,
+            GotoTab8,
+            GotoTab9,
         ];
 
         for action in actions {
@@ -1359,14 +1510,20 @@ mod tests {
     #[test]
     fn test_normalize_keybinding_basic() {
         assert_eq!(KeybindingsConfig::normalize_keybinding("ctrl+t"), "ctrl-t");
-        assert_eq!(KeybindingsConfig::normalize_keybinding("cmd+shift+p"), "cmd-shift-p");
+        assert_eq!(
+            KeybindingsConfig::normalize_keybinding("cmd+shift+p"),
+            "cmd-shift-p"
+        );
         assert_eq!(KeybindingsConfig::normalize_keybinding("alt+f4"), "alt-f4");
     }
 
     #[test]
     fn test_normalize_keybinding_lowercase() {
         assert_eq!(KeybindingsConfig::normalize_keybinding("Ctrl+T"), "ctrl-t");
-        assert_eq!(KeybindingsConfig::normalize_keybinding("CMD+SHIFT+P"), "cmd-shift-p");
+        assert_eq!(
+            KeybindingsConfig::normalize_keybinding("CMD+SHIFT+P"),
+            "cmd-shift-p"
+        );
         assert_eq!(KeybindingsConfig::normalize_keybinding("Alt+F4"), "alt-f4");
     }
 
@@ -1375,14 +1532,26 @@ mod tests {
         assert_eq!(KeybindingsConfig::normalize_keybinding("f1"), "f1");
         assert_eq!(KeybindingsConfig::normalize_keybinding("f11"), "f11");
         assert_eq!(KeybindingsConfig::normalize_keybinding("pageup"), "pageup");
-        assert_eq!(KeybindingsConfig::normalize_keybinding("pagedown"), "pagedown");
+        assert_eq!(
+            KeybindingsConfig::normalize_keybinding("pagedown"),
+            "pagedown"
+        );
     }
 
     #[test]
     fn test_normalize_keybinding_modifiers() {
-        assert_eq!(KeybindingsConfig::normalize_keybinding("ctrl+shift+c"), "ctrl-shift-c");
-        assert_eq!(KeybindingsConfig::normalize_keybinding("cmd+ctrl+f"), "cmd-ctrl-f");
-        assert_eq!(KeybindingsConfig::normalize_keybinding("alt+shift+left"), "alt-shift-left");
+        assert_eq!(
+            KeybindingsConfig::normalize_keybinding("ctrl+shift+c"),
+            "ctrl-shift-c"
+        );
+        assert_eq!(
+            KeybindingsConfig::normalize_keybinding("cmd+ctrl+f"),
+            "cmd-ctrl-f"
+        );
+        assert_eq!(
+            KeybindingsConfig::normalize_keybinding("alt+shift+left"),
+            "alt-shift-left"
+        );
     }
 
     #[test]

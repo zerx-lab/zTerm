@@ -4,7 +4,6 @@
 //! identifies OSC 133 and OSC 633 sequences in the PTY output stream
 //! before passing data to the terminal emulator.
 
-
 /// OSC sequence types we care about
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OscSequence {
@@ -216,15 +215,9 @@ impl OscScanner {
                 let command = Self::decode_percent(params);
                 Some(OscSequence::CommandText { command })
             }
-            "P" => {
-                if let Some(path) = params.strip_prefix("Cwd=") {
-                    Some(OscSequence::WorkingDirectory {
-                        path: path.to_string(),
-                    })
-                } else {
-                    None
-                }
-            }
+            "P" => params.strip_prefix("Cwd=").map(|path| OscSequence::WorkingDirectory {
+                path: path.to_string(),
+            }),
             _ => None,
         }
     }
@@ -556,7 +549,7 @@ mod tests {
         let mut scanner = OscScanner::with_max_len(10);
 
         let mut data = vec![0x1b, b']'];
-        data.extend(std::iter::repeat(b'x').take(100));
+        data.extend(std::iter::repeat_n(b'x', 100));
         data.push(0x07);
 
         let seqs = scanner.scan(&data);

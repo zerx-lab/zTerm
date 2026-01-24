@@ -1,9 +1,9 @@
 //! Command history management
 
-use zterm_common::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::path::PathBuf;
+use zterm_common::Result;
 
 /// Command history entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -147,7 +147,7 @@ impl History {
     }
 
     /// Navigate to the next command in history
-    pub fn next(&mut self) -> Option<&str> {
+    pub fn next_command(&mut self) -> Option<&str> {
         match self.position {
             None => None,
             Some(pos) => {
@@ -213,7 +213,7 @@ mod tests {
         assert_eq!(history.previous(), Some("cmd3"));
         assert_eq!(history.previous(), Some("cmd2"));
         assert_eq!(history.previous(), Some("cmd1"));
-        assert_eq!(history.next(), Some("cmd2"));
+        assert_eq!(history.next_command(), Some("cmd2"));
     }
 
     #[test]
@@ -280,7 +280,7 @@ mod tests {
         let mut history = History::new(100);
         history.add("cmd".to_string(), None, None);
         // Without calling previous first, next should return None
-        assert!(history.next().is_none());
+        assert!(history.next_command().is_none());
     }
 
     #[test]
@@ -296,9 +296,9 @@ mod tests {
         assert_eq!(history.previous(), Some("cmd1"));
 
         // Navigate back
-        assert_eq!(history.next(), Some("cmd2"));
+        assert_eq!(history.next_command(), Some("cmd2"));
         // Past the newest, should return None and reset
-        assert!(history.next().is_none());
+        assert!(history.next_command().is_none());
     }
 
     #[test]

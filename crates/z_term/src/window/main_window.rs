@@ -6,9 +6,9 @@ use crate::app::{
     SplitHorizontal, SplitVertical, ToggleFullscreen, ZoomIn, ZoomOut,
 };
 use crate::workspace::Workspace;
-use zterm_ui::{TabInfo, TitleBar, TitleBarEvent};
 use axon_ui::ThemeContext;
 use gpui::*;
+use zterm_ui::{TabInfo, TitleBar, TitleBarEvent};
 
 /// The main application window
 pub struct MainWindow {

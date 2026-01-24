@@ -194,9 +194,7 @@ pub struct ThemeRegistry {
 impl ThemeRegistry {
     /// 创建新的主题注册表
     pub fn new() -> Self {
-        Self {
-            themes: Vec::new(),
-        }
+        Self { themes: Vec::new() }
     }
 
     /// 注册主题

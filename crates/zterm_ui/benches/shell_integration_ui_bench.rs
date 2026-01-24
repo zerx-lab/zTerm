@@ -1,12 +1,12 @@
 //! Benchmarks for shell integration UI module
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use gpui::Point;
 use zterm_terminal::shell_integration::CommandState;
 use zterm_ui::shell_integration::{
-    build_context_menu, command_state_to_visual, GutterConfig, GutterMark, GutterVisual,
-    HighlightConfig, HighlightRect, HighlightRegion, HighlightType, HoverState, MenuContext,
-    MouseConfig, MouseHandler,
+    GutterConfig, GutterMark, GutterVisual, HighlightConfig, HighlightRect, HighlightRegion,
+    HighlightType, HoverState, MenuContext, MouseConfig, MouseHandler, build_context_menu,
+    command_state_to_visual,
 };
 
 fn bench_screen_to_line(c: &mut Criterion) {
@@ -119,9 +119,7 @@ fn bench_gutter_state_to_visual(c: &mut Criterion) {
 
     for (name, is_prompt, is_running, exit_code) in test_cases {
         group.bench_function(name, |b| {
-            b.iter(|| {
-                black_box(command_state_to_visual(is_prompt, is_running, exit_code))
-            });
+            b.iter(|| black_box(command_state_to_visual(is_prompt, is_running, exit_code)));
         });
     }
 
@@ -207,11 +205,11 @@ fn bench_highlight_rect_computation(c: &mut Criterion) {
             let rect = black_box(HighlightRect::from_region(
                 &region,
                 &config,
-                20.0,         // line_height
+                20.0, // line_height
                 first_visible,
-                0.0,          // x
-                800.0,        // width
-                0.0,          // scroll_offset
+                0.0,   // x
+                800.0, // width
+                0.0,   // scroll_offset
             ));
             first_visible = (first_visible + 1) % 60;
             rect

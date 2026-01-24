@@ -8,12 +8,12 @@
 
 use crate::components::{SharedBounds, TerminalView};
 use crate::theme::TerminalTheme;
-use zterm_terminal::alacritty_terminal::term::cell::Flags;
-use zterm_terminal::alacritty_terminal::vte::ansi::{Color as AnsiColor, CursorShape};
-use zterm_terminal::{IndexedCell, Terminal, TerminalBounds, TerminalContent};
 use gpui::*;
 use std::ops::Range;
 use unicode_width::UnicodeWidthChar;
+use zterm_terminal::alacritty_terminal::term::cell::Flags;
+use zterm_terminal::alacritty_terminal::vte::ansi::{Color as AnsiColor, CursorShape};
+use zterm_terminal::{IndexedCell, Terminal, TerminalBounds, TerminalContent};
 
 /// Selection range in the terminal
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -608,7 +608,8 @@ impl Element for TerminalElement {
         // Apply y_offset for bottom alignment
         if marked_text.is_none() && !matches!(layout.cursor_shape, CursorShape::Hidden) {
             let cursor_x = origin.x + layout.cell_width * layout.cursor_col as f32;
-            let cursor_y = origin.y + layout.y_offset + layout.line_height * layout.cursor_line as f32;
+            let cursor_y =
+                origin.y + layout.y_offset + layout.line_height * layout.cursor_line as f32;
             let cursor_bounds = Bounds::new(
                 point(cursor_x, cursor_y),
                 size(layout.cell_width, layout.line_height),

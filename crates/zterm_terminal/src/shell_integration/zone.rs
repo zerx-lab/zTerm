@@ -120,7 +120,8 @@ impl CommandZone {
 
     /// Get the duration of command execution
     pub fn duration(&self) -> Option<Duration> {
-        self.finished_at.map(|end| end.duration_since(self.started_at))
+        self.finished_at
+            .map(|end| end.duration_since(self.started_at))
     }
 
     /// Get the number of lines in this zone
@@ -427,8 +428,14 @@ mod tests {
     #[test]
     fn test_command_state_equality() {
         assert_eq!(CommandState::PromptStart, CommandState::PromptStart);
-        assert_eq!(CommandState::CommandFinished(0), CommandState::CommandFinished(0));
-        assert_ne!(CommandState::CommandFinished(0), CommandState::CommandFinished(1));
+        assert_eq!(
+            CommandState::CommandFinished(0),
+            CommandState::CommandFinished(0)
+        );
+        assert_ne!(
+            CommandState::CommandFinished(0),
+            CommandState::CommandFinished(1)
+        );
     }
 
     #[test]
@@ -576,7 +583,10 @@ mod tests {
 
         // A: Prompt start
         let id = manager.start_zone(CommandState::PromptStart, 0);
-        assert_eq!(manager.active_zone().unwrap().state, CommandState::PromptStart);
+        assert_eq!(
+            manager.active_zone().unwrap().state,
+            CommandState::PromptStart
+        );
 
         // B: Command start (user typing)
         manager.transition_state(CommandState::CommandStart, 1);
@@ -584,7 +594,10 @@ mod tests {
 
         // C: Command executing
         manager.transition_state(CommandState::CommandExecuting, 2);
-        assert_eq!(manager.get(id).unwrap().state, CommandState::CommandExecuting);
+        assert_eq!(
+            manager.get(id).unwrap().state,
+            CommandState::CommandExecuting
+        );
 
         // D: Command finished
         manager.finish_zone(10, 0);

@@ -10,7 +10,7 @@ pub use context_menu::{ContextMenuItem, ContextMenuState};
 pub use context_menu_view::{ContextMenuView, MenuItemData};
 pub use tab_bar::TerminalTabBar;
 pub use terminal_view::{
-    Copy, GridPosition, ImeState, Paste, ScrollDown, ScrollPageDown, ScrollPageUp,
-    ScrollToBottom, ScrollToTop, ScrollUp, Search, SharedBounds, TerminalView,
+    Copy, GridPosition, ImeState, Paste, ScrollDown, ScrollPageDown, ScrollPageUp, ScrollToBottom,
+    ScrollToTop, ScrollUp, Search, SharedBounds, TerminalView,
 };
 pub use title_bar::{TabInfo, TitleBar};

@@ -3,15 +3,21 @@
 //! This module provides 100% test coverage for all public and testable
 //! components of the title_bar module.
 
-use zterm_ui::{
-    LinuxWindowControls, PlatformStyle, TabInfo, TitleBar, TitleBarEvent, WindowsWindowControls,
-    TITLE_BAR_HEIGHT,
-};
 use gpui::px;
+use zterm_ui::{
+    LinuxWindowControls, PlatformStyle, TITLE_BAR_HEIGHT, TabInfo, TitleBar, TitleBarEvent,
+    WindowsWindowControls,
+};
 
 /// Helper function to create TabInfo for tests
 fn create_tab(id: usize, title: &str, active: bool, shell: &str, dir: &str) -> TabInfo {
-    TabInfo::new(id, title.to_string(), active, shell.to_string(), dir.to_string())
+    TabInfo::new(
+        id,
+        title.to_string(),
+        active,
+        shell.to_string(),
+        dir.to_string(),
+    )
 }
 
 // =============================================================================
@@ -367,7 +373,15 @@ mod title_bar_tests {
     #[test]
     fn test_title_bar_many_tabs() {
         let tabs: Vec<TabInfo> = (0..100)
-            .map(|i| create_tab(i, &format!("Tab {}", i), i == 0, "bash", &format!("/path/{}", i)))
+            .map(|i| {
+                create_tab(
+                    i,
+                    &format!("Tab {}", i),
+                    i == 0,
+                    "bash",
+                    &format!("/path/{}", i),
+                )
+            })
             .collect();
 
         let title_bar = TitleBar::new().tabs(tabs);
@@ -467,7 +481,15 @@ mod scroll_to_tab_tests {
     #[test]
     fn test_scroll_to_tab_with_multiple_tabs() {
         let tabs: Vec<TabInfo> = (0..10)
-            .map(|i| create_tab(i, &format!("Tab {}", i), i == 0, "bash", &format!("/path/{}", i)))
+            .map(|i| {
+                create_tab(
+                    i,
+                    &format!("Tab {}", i),
+                    i == 0,
+                    "bash",
+                    &format!("/path/{}", i),
+                )
+            })
             .collect();
         let title_bar = TitleBar::new().tabs(tabs);
 
@@ -531,7 +553,15 @@ mod scroll_to_tab_tests {
     fn test_scroll_to_tab_with_large_tab_count() {
         // Stress test with many tabs
         let tabs: Vec<TabInfo> = (0..1000)
-            .map(|i| create_tab(i, &format!("Tab {}", i), i == 0, "bash", &format!("/path/{}", i)))
+            .map(|i| {
+                create_tab(
+                    i,
+                    &format!("Tab {}", i),
+                    i == 0,
+                    "bash",
+                    &format!("/path/{}", i),
+                )
+            })
             .collect();
         let title_bar = TitleBar::new().tabs(tabs);
 
@@ -678,7 +708,15 @@ mod performance_tests {
     #[test]
     fn test_scroll_performance_many_iterations() {
         let tabs: Vec<TabInfo> = (0..100)
-            .map(|i| create_tab(i, &format!("Tab {}", i), i == 0, "bash", &format!("/path/{}", i)))
+            .map(|i| {
+                create_tab(
+                    i,
+                    &format!("Tab {}", i),
+                    i == 0,
+                    "bash",
+                    &format!("/path/{}", i),
+                )
+            })
             .collect();
         let title_bar = TitleBar::new().tabs(tabs);
 
@@ -703,7 +741,13 @@ mod performance_tests {
         for _ in 0..1000 {
             let tabs: Vec<TabInfo> = (0..50)
                 .map(|i| {
-                    create_tab(i, &format!("Tab {}", i), i == 0, "bash", &format!("/path/{}", i))
+                    create_tab(
+                        i,
+                        &format!("Tab {}", i),
+                        i == 0,
+                        "bash",
+                        &format!("/path/{}", i),
+                    )
                 })
                 .collect();
             let _title_bar = TitleBar::new().tabs(tabs);

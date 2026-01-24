@@ -10,6 +10,9 @@
 //! This test aims to reproduce the bug at the alacritty_terminal level
 //! to understand the root cause of scrollback buffer issues during resize.
 
+#![allow(dead_code)]
+#![allow(unused_variables)]
+
 use alacritty_terminal::event::{Event as AlacEvent, EventListener};
 use alacritty_terminal::grid::{Dimensions, Scroll};
 use alacritty_terminal::index::{Column, Line, Point};
@@ -134,7 +137,10 @@ fn get_all_text_with_scrollback(term: &Term<TestEventListener>) -> String {
 #[test]
 fn test_resize_with_scrollback_content_loss() {
     // Create a small terminal (10 lines, 80 cols)
-    let initial_dims = TestDimensions { cols: 80, lines: 10 };
+    let initial_dims = TestDimensions {
+        cols: 80,
+        lines: 10,
+    };
     let config = Config {
         scrolling_history: 1000, // Enable scrollback
         ..Config::default()
@@ -144,7 +150,13 @@ fn test_resize_with_scrollback_content_loss() {
 
     // Write more lines than the view can display (20 lines)
     for i in 1..=20 {
-        write_to_terminal(&mut term, &format!("Line {:02}: This is test content that should be preserved\r\n", i));
+        write_to_terminal(
+            &mut term,
+            &format!(
+                "Line {:02}: This is test content that should be preserved\r\n",
+                i
+            ),
+        );
     }
 
     // Record state before resize
@@ -160,7 +172,10 @@ fn test_resize_with_scrollback_content_loss() {
     assert!(history_before > 0, "Should have scrollback history");
 
     // Simulate maximize: increase terminal size significantly
-    let maximized_dims = TestDimensions { cols: 80, lines: 40 };
+    let maximized_dims = TestDimensions {
+        cols: 80,
+        lines: 40,
+    };
     term.resize(maximized_dims);
 
     let history_after_max = term.history_size();
@@ -211,7 +226,10 @@ fn test_resize_with_scrollback_content_loss() {
 /// This test checks if display_offset is correctly maintained during resize
 #[test]
 fn test_scroll_position_after_resize() {
-    let initial_dims = TestDimensions { cols: 80, lines: 10 };
+    let initial_dims = TestDimensions {
+        cols: 80,
+        lines: 10,
+    };
     let config = Config {
         scrolling_history: 1000,
         ..Config::default()
@@ -233,7 +251,10 @@ fn test_scroll_position_after_resize() {
     println!("Display offset before resize: {}", offset_before);
 
     // Simulate maximize
-    let maximized_dims = TestDimensions { cols: 80, lines: 40 };
+    let maximized_dims = TestDimensions {
+        cols: 80,
+        lines: 40,
+    };
     term.resize(maximized_dims);
 
     let offset_after_max = term.grid().display_offset();
@@ -263,8 +284,14 @@ fn test_scroll_position_after_resize() {
 /// This simulates the user rapidly maximizing and restoring the window
 #[test]
 fn test_rapid_resize_content_integrity() {
-    let small_dims = TestDimensions { cols: 80, lines: 10 };
-    let large_dims = TestDimensions { cols: 80, lines: 40 };
+    let small_dims = TestDimensions {
+        cols: 80,
+        lines: 10,
+    };
+    let large_dims = TestDimensions {
+        cols: 80,
+        lines: 40,
+    };
     let config = Config {
         scrolling_history: 1000,
         ..Config::default()
@@ -291,8 +318,10 @@ fn test_rapid_resize_content_integrity() {
         let marker_15 = current_content.contains("MARKER_15_CONTENT");
         let marker_30 = current_content.contains("MARKER_30_CONTENT");
 
-        println!("Cycle {}: markers present: 01={}, 15={}, 30={}",
-                 cycle, marker_01, marker_15, marker_30);
+        println!(
+            "Cycle {}: markers present: 01={}, 15={}, 30={}",
+            cycle, marker_01, marker_15, marker_30
+        );
 
         // BUG: Content may degrade over multiple resize cycles
         assert!(marker_01, "BUG: MARKER_01 lost after cycle {}", cycle);
@@ -307,7 +336,10 @@ fn test_rapid_resize_content_integrity() {
 /// Bug: "background colors are garbled" after resize
 #[test]
 fn test_cell_attributes_after_resize() {
-    let initial_dims = TestDimensions { cols: 80, lines: 10 };
+    let initial_dims = TestDimensions {
+        cols: 80,
+        lines: 10,
+    };
     let config = Config {
         scrolling_history: 1000,
         ..Config::default()
@@ -318,7 +350,10 @@ fn test_cell_attributes_after_resize() {
     // Write content with ANSI colors and attributes
     // Red text: \x1b[31m, Bold: \x1b[1m, Reset: \x1b[0m
     for i in 1..=20 {
-        write_to_terminal(&mut term, &format!("\x1b[31;1mRed Line {:02}\x1b[0m Normal\r\n", i));
+        write_to_terminal(
+            &mut term,
+            &format!("\x1b[31;1mRed Line {:02}\x1b[0m Normal\r\n", i),
+        );
     }
 
     // Get cell flags before resize
@@ -331,7 +366,10 @@ fn test_cell_attributes_after_resize() {
     }
 
     // Resize cycle
-    let large_dims = TestDimensions { cols: 80, lines: 40 };
+    let large_dims = TestDimensions {
+        cols: 80,
+        lines: 40,
+    };
     term.resize(large_dims);
     term.resize(initial_dims);
 
@@ -348,8 +386,14 @@ fn test_cell_attributes_after_resize() {
     println!("Flags after: {} entries", flags_after.len());
 
     // Count BOLD flags
-    let bold_before = flags_before.iter().filter(|f| f.contains(Flags::BOLD)).count();
-    let bold_after = flags_after.iter().filter(|f| f.contains(Flags::BOLD)).count();
+    let bold_before = flags_before
+        .iter()
+        .filter(|f| f.contains(Flags::BOLD))
+        .count();
+    let bold_after = flags_after
+        .iter()
+        .filter(|f| f.contains(Flags::BOLD))
+        .count();
 
     println!("BOLD flags before: {}", bold_before);
     println!("BOLD flags after: {}", bold_after);
@@ -371,7 +415,10 @@ fn test_cell_attributes_after_resize() {
 /// Verify cursor position is correctly maintained
 #[test]
 fn test_cursor_position_during_resize() {
-    let initial_dims = TestDimensions { cols: 80, lines: 10 };
+    let initial_dims = TestDimensions {
+        cols: 80,
+        lines: 10,
+    };
     let config = Config {
         scrolling_history: 1000,
         ..Config::default()
@@ -389,7 +436,10 @@ fn test_cursor_position_during_resize() {
     println!("Cursor before resize: {:?}", cursor_before);
 
     // Maximize
-    let large_dims = TestDimensions { cols: 80, lines: 40 };
+    let large_dims = TestDimensions {
+        cols: 80,
+        lines: 40,
+    };
     term.resize(large_dims);
     let cursor_after_max = term.renderable_content().cursor.point;
     println!("Cursor after maximize: {:?}", cursor_after_max);
@@ -408,7 +458,8 @@ fn test_cursor_position_during_resize() {
     // Cursor line might change if content was reflowed
     // But should still be valid
     assert!(
-        cursor_after_restore.line.0 >= 0 && cursor_after_restore.line.0 < term.screen_lines() as i32,
+        cursor_after_restore.line.0 >= 0
+            && cursor_after_restore.line.0 < term.screen_lines() as i32,
         "BUG: Cursor line {} is out of bounds after resize (screen_lines: {})",
         cursor_after_restore.line.0,
         term.screen_lines()
@@ -440,7 +491,10 @@ fn test_history_content_transition() {
     println!("History with 5 lines: {}", history_small);
 
     // Grow terminal to 20 lines - some scrollback should become visible
-    let medium_dims = TestDimensions { cols: 80, lines: 20 };
+    let medium_dims = TestDimensions {
+        cols: 80,
+        lines: 20,
+    };
     term.resize(medium_dims);
     let history_medium = term.history_size();
     println!("History with 20 lines: {}", history_medium);
@@ -470,7 +524,10 @@ fn test_history_content_transition() {
 /// Resize can affect line wrapping behavior
 #[test]
 fn test_long_line_wrapping_during_resize() {
-    let narrow_dims = TestDimensions { cols: 40, lines: 10 };
+    let narrow_dims = TestDimensions {
+        cols: 40,
+        lines: 10,
+    };
     let config = Config {
         scrolling_history: 1000,
         ..Config::default()
@@ -488,7 +545,10 @@ fn test_long_line_wrapping_during_resize() {
     println!("'A' count before resize: {}", a_count_before);
 
     // Make terminal wider - line should unwrap
-    let wide_dims = TestDimensions { cols: 120, lines: 10 };
+    let wide_dims = TestDimensions {
+        cols: 120,
+        lines: 10,
+    };
     term.resize(wide_dims);
 
     // Make terminal narrow again
@@ -512,7 +572,10 @@ fn test_long_line_wrapping_during_resize() {
 /// Test behavior when scrollback is at or near its limit
 #[test]
 fn test_resize_at_scrollback_limit() {
-    let dims = TestDimensions { cols: 80, lines: 10 };
+    let dims = TestDimensions {
+        cols: 80,
+        lines: 10,
+    };
     let config = Config {
         scrolling_history: 20, // Small scrollback limit
         ..Config::default()
@@ -529,7 +592,10 @@ fn test_resize_at_scrollback_limit() {
     println!("History before (should be at limit): {}", history_before);
 
     // Resize
-    let large_dims = TestDimensions { cols: 80, lines: 40 };
+    let large_dims = TestDimensions {
+        cols: 80,
+        lines: 40,
+    };
     term.resize(large_dims);
     term.resize(dims);
 
@@ -556,7 +622,10 @@ fn test_resize_at_scrollback_limit() {
 /// Edge case: resize an empty terminal
 #[test]
 fn test_empty_terminal_resize() {
-    let initial_dims = TestDimensions { cols: 80, lines: 10 };
+    let initial_dims = TestDimensions {
+        cols: 80,
+        lines: 10,
+    };
     let config = Config::default();
     let listener = TestEventListener;
     let mut term = Term::new(config, &initial_dims, listener);
@@ -564,14 +633,20 @@ fn test_empty_terminal_resize() {
     // Don't write anything - terminal is empty
 
     // Resize should not panic
-    let large_dims = TestDimensions { cols: 80, lines: 40 };
+    let large_dims = TestDimensions {
+        cols: 80,
+        lines: 40,
+    };
     term.resize(large_dims);
     term.resize(initial_dims);
 
     // Terminal should still be functional
     write_to_terminal(&mut term, "After resize");
     let content = get_visible_text(&term);
-    assert!(content.contains("After resize"), "Terminal not functional after empty resize");
+    assert!(
+        content.contains("After resize"),
+        "Terminal not functional after empty resize"
+    );
 }
 
 /// Test Case 10: Simulate the exact bug scenario
@@ -584,7 +659,10 @@ fn test_empty_terminal_resize() {
 /// 5. Try to scroll up - content should be accessible
 #[test]
 fn test_exact_bug_scenario_maximize_restore() {
-    let initial_dims = TestDimensions { cols: 80, lines: 24 }; // Typical small window
+    let initial_dims = TestDimensions {
+        cols: 80,
+        lines: 24,
+    }; // Typical small window
     let config = Config {
         scrolling_history: 10000, // Large scrollback like real terminal
         ..Config::default()
@@ -597,10 +675,15 @@ fn test_exact_bug_scenario_maximize_restore() {
 
     // Simulate large output (100 lines, exceeds 24-line view)
     for i in 1..=100 {
-        write_to_terminal(&mut term, &format!(
-            "-rw-r--r--  1 user user  4096 Jan {} {:02}:00 file{:03}.txt\r\n",
-            i % 28 + 1, i % 24, i
-        ));
+        write_to_terminal(
+            &mut term,
+            &format!(
+                "-rw-r--r--  1 user user  4096 Jan {} {:02}:00 file{:03}.txt\r\n",
+                i % 28 + 1,
+                i % 24,
+                i
+            ),
+        );
     }
 
     // Simulate next prompt
@@ -612,11 +695,20 @@ fn test_exact_bug_scenario_maximize_restore() {
 
     // Record first line content (should be in scrollback)
     let first_line_present = get_all_text_with_scrollback(&term).contains("file001.txt");
-    println!("file001.txt present before maximize: {}", first_line_present);
-    assert!(first_line_present, "First output line should be in scrollback");
+    println!(
+        "file001.txt present before maximize: {}",
+        first_line_present
+    );
+    assert!(
+        first_line_present,
+        "First output line should be in scrollback"
+    );
 
     // Step 1: MAXIMIZE (simulate double-click titlebar)
-    let maximized_dims = TestDimensions { cols: 80, lines: 50 }; // Larger window
+    let maximized_dims = TestDimensions {
+        cols: 80,
+        lines: 50,
+    }; // Larger window
     term.resize(maximized_dims);
 
     println!("\n=== After Maximize (50 lines) ===");
@@ -647,10 +739,22 @@ fn test_exact_bug_scenario_maximize_restore() {
     println!("Prompt present: {}", prompt_present);
 
     // These assertions may FAIL, demonstrating the bug
-    assert!(file001_present, "BUG: First output file001.txt was lost after maximize/restore");
-    assert!(file050_present, "BUG: Middle output file050.txt was lost after maximize/restore");
-    assert!(file100_present, "BUG: Last output file100.txt was lost after maximize/restore");
-    assert!(prompt_present, "BUG: Shell prompt was lost after maximize/restore");
+    assert!(
+        file001_present,
+        "BUG: First output file001.txt was lost after maximize/restore"
+    );
+    assert!(
+        file050_present,
+        "BUG: Middle output file050.txt was lost after maximize/restore"
+    );
+    assert!(
+        file100_present,
+        "BUG: Last output file100.txt was lost after maximize/restore"
+    );
+    assert!(
+        prompt_present,
+        "BUG: Shell prompt was lost after maximize/restore"
+    );
 
     // BUG CHECK 2: Try to scroll up (simulate user scrolling)
     term.scroll_display(Scroll::Delta(50)); // Scroll up 50 lines
@@ -662,10 +766,14 @@ fn test_exact_bug_scenario_maximize_restore() {
     // BUG CHECK 3: "滚动出现的内容是渲染错乱的"
     // Get content after scrolling
     let scrolled_content = get_visible_text(&term);
-    println!("Visible content after scroll:\n{}", &scrolled_content[..200.min(scrolled_content.len())]);
+    println!(
+        "Visible content after scroll:\n{}",
+        &scrolled_content[..200.min(scrolled_content.len())]
+    );
 
     // Check that scrolled content is coherent (contains expected file entries)
-    let contains_file_entry = scrolled_content.contains("file") || scrolled_content.contains("-rw-");
+    let contains_file_entry =
+        scrolled_content.contains("file") || scrolled_content.contains("-rw-");
     assert!(
         contains_file_entry || scrolled_content.contains("user@host"),
         "BUG: Scrolled content appears garbled - no recognizable content"
@@ -679,7 +787,10 @@ fn test_exact_bug_scenario_maximize_restore() {
 /// Test: Resize during active scroll position
 #[test]
 fn test_resize_while_scrolled_up() {
-    let dims = TestDimensions { cols: 80, lines: 10 };
+    let dims = TestDimensions {
+        cols: 80,
+        lines: 10,
+    };
     let config = Config {
         scrolling_history: 1000,
         ..Config::default()
@@ -701,7 +812,10 @@ fn test_resize_while_scrolled_up() {
     let visible_before = get_visible_text(&term);
 
     // Resize while scrolled
-    let large_dims = TestDimensions { cols: 80, lines: 40 };
+    let large_dims = TestDimensions {
+        cols: 80,
+        lines: 40,
+    };
     term.resize(large_dims);
 
     let offset_after = term.grid().display_offset();
@@ -742,7 +856,10 @@ fn test_very_small_terminal() {
     }
 
     // Grow
-    let normal_dims = TestDimensions { cols: 80, lines: 24 };
+    let normal_dims = TestDimensions {
+        cols: 80,
+        lines: 24,
+    };
     term.resize(normal_dims);
 
     // Shrink back

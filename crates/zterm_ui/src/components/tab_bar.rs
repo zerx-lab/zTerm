@@ -1,7 +1,7 @@
 //! Terminal tab bar component
 
-use axon_ui::ThemeContext;
 use crate::components::title_bar::TabInfo;
+use axon_ui::ThemeContext;
 use gpui::prelude::*;
 use gpui::*;
 use gpui_component::h_flex;
@@ -86,11 +86,8 @@ impl RenderOnce for TerminalTabBar {
                                 } else {
                                     tab_inactive_bg
                                 };
-                                let tab_text_color = if tab.active {
-                                    text_color
-                                } else {
-                                    text_muted
-                                };
+                                let tab_text_color =
+                                    if tab.active { text_color } else { text_muted };
 
                                 div()
                                     .id(ElementId::Name(format!("tab-{}", tab.id).into()))

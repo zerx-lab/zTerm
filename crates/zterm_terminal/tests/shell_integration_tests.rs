@@ -487,27 +487,35 @@ mod handler_tests {
 
         handler.handle_osc(b"133;A");
         let events = handler.take_events();
-        assert!(events
-            .iter()
-            .any(|e| matches!(e, ShellEvent::PromptStarted { .. })));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, ShellEvent::PromptStarted { .. }))
+        );
 
         handler.handle_osc(b"133;B");
         let events = handler.take_events();
-        assert!(events
-            .iter()
-            .any(|e| matches!(e, ShellEvent::CommandStarted { .. })));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, ShellEvent::CommandStarted { .. }))
+        );
 
         handler.handle_osc(b"133;C");
         let events = handler.take_events();
-        assert!(events
-            .iter()
-            .any(|e| matches!(e, ShellEvent::CommandExecuting { .. })));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, ShellEvent::CommandExecuting { .. }))
+        );
 
         handler.handle_osc(b"133;D;0");
         let events = handler.take_events();
-        assert!(events.iter().any(
-            |e| matches!(e, ShellEvent::CommandFinished { exit_code: 0, .. })
-        ));
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, ShellEvent::CommandFinished { exit_code: 0, .. }))
+        );
     }
 
     #[test]

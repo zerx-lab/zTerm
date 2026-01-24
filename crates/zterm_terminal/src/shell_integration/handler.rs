@@ -88,7 +88,9 @@ impl ShellIntegrationHandler {
         match cmd {
             "A" => {
                 // Prompt start
-                let zone_id = self.zone_manager.start_zone(CommandState::PromptStart, self.current_line);
+                let zone_id = self
+                    .zone_manager
+                    .start_zone(CommandState::PromptStart, self.current_line);
                 self.pending_events.push(ShellEvent::PromptStarted {
                     zone_id,
                     line: self.current_line,
@@ -97,7 +99,8 @@ impl ShellIntegrationHandler {
             }
             "B" => {
                 // Command start (user input area)
-                self.zone_manager.transition_state(CommandState::CommandStart, self.current_line);
+                self.zone_manager
+                    .transition_state(CommandState::CommandStart, self.current_line);
                 if let Some(zone) = self.zone_manager.active_zone() {
                     self.pending_events.push(ShellEvent::CommandStarted {
                         zone_id: zone.id,
@@ -108,7 +111,8 @@ impl ShellIntegrationHandler {
             }
             "C" => {
                 // Command executing
-                self.zone_manager.transition_state(CommandState::CommandExecuting, self.current_line);
+                self.zone_manager
+                    .transition_state(CommandState::CommandExecuting, self.current_line);
                 if let Some(zone) = self.zone_manager.active_zone() {
                     self.pending_events.push(ShellEvent::CommandExecuting {
                         zone_id: zone.id,
@@ -188,7 +192,8 @@ impl ShellIntegrationHandler {
 
         let path = Self::decode_percent(path);
         self.zone_manager.set_working_directory(path.clone());
-        self.pending_events.push(ShellEvent::WorkingDirectoryChanged { path });
+        self.pending_events
+            .push(ShellEvent::WorkingDirectoryChanged { path });
         true
     }
 
@@ -267,7 +272,10 @@ mod tests {
 
         let events = handler.take_events();
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], ShellEvent::PromptStarted { line: 10, .. }));
+        assert!(matches!(
+            events[0],
+            ShellEvent::PromptStarted { line: 10, .. }
+        ));
     }
 
     #[test]
@@ -297,7 +305,10 @@ mod tests {
 
         let events = handler.take_events();
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], ShellEvent::CommandStarted { line: 11, .. }));
+        assert!(matches!(
+            events[0],
+            ShellEvent::CommandStarted { line: 11, .. }
+        ));
     }
 
     #[test]
@@ -325,7 +336,10 @@ mod tests {
 
         let events = handler.take_events();
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], ShellEvent::CommandExecuting { line: 12, .. }));
+        assert!(matches!(
+            events[0],
+            ShellEvent::CommandExecuting { line: 12, .. }
+        ));
     }
 
     #[test]
@@ -356,7 +370,9 @@ mod tests {
         let events = handler.take_events();
         assert_eq!(events.len(), 1);
         match &events[0] {
-            ShellEvent::CommandFinished { line, exit_code, .. } => {
+            ShellEvent::CommandFinished {
+                line, exit_code, ..
+            } => {
                 assert_eq!(*line, 20);
                 assert_eq!(*exit_code, 0);
             }

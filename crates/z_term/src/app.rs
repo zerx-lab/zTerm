@@ -2,16 +2,16 @@
 
 use crate::window::MainWindow;
 use crate::workspace::Workspace;
-use zterm_common::AppSettings;
-use zterm_terminal::TerminalSize;
 use gpui::*;
 use gpui_component::theme::Theme;
+use zterm_common::AppSettings;
+use zterm_terminal::TerminalSize;
 
 // Terminal-specific actions are defined in zterm_ui::components::terminal_view
 // and re-exported here for convenience
 pub use zterm_ui::{
-    Copy, Paste, ScrollDown, ScrollPageDown, ScrollPageUp, ScrollToBottom,
-    ScrollToTop, ScrollUp, Search,
+    Copy, Paste, ScrollDown, ScrollPageDown, ScrollPageUp, ScrollToBottom, ScrollToTop, ScrollUp,
+    Search,
 };
 
 actions!(
@@ -112,7 +112,8 @@ impl ZTermApp {
 
                 // Check if config has changed
                 let (current_counter, current_theme) = cx.update(|cx| {
-                    let counter = cx.try_global::<AppSettings>()
+                    let counter = cx
+                        .try_global::<AppSettings>()
                         .map(|s| s.change_counter)
                         .unwrap_or(0);
                     let theme = zterm_common::Config::global().ui.theme.clone();
@@ -131,7 +132,10 @@ impl ZTermApp {
                         });
                     }
 
-                    tracing::info!("Config changed (counter: {}), rebinding keybindings...", current_counter);
+                    tracing::info!(
+                        "Config changed (counter: {}), rebinding keybindings...",
+                        current_counter
+                    );
                     cx.update(|cx| {
                         Self::setup_keybindings(cx);
                     });
@@ -164,53 +168,177 @@ impl ZTermApp {
 
         // Global keybindings (no context required)
         let mut bindings = vec![
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::Quit)), Quit, None),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::NewWindow)), NewWindow, None),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::Quit)),
+                Quit,
+                None,
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::NewWindow)),
+                NewWindow,
+                None,
+            ),
         ];
 
         // MainWindow context keybindings (Tab management, Window operations, Zoom)
         bindings.extend([
             // Tab management
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::NewTab)), NewTab, Some("MainWindow")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::CloseTab)), CloseActiveTab, Some("MainWindow")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::NextTab)), NextTab, Some("MainWindow")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::PrevTab)), PrevTab, Some("MainWindow")),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::NewTab)),
+                NewTab,
+                Some("MainWindow"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::CloseTab)),
+                CloseActiveTab,
+                Some("MainWindow"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::NextTab)),
+                NextTab,
+                Some("MainWindow"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::PrevTab)),
+                PrevTab,
+                Some("MainWindow"),
+            ),
             // Window operations
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::ToggleFullscreen)), ToggleFullscreen, Some("MainWindow")),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::ToggleFullscreen)),
+                ToggleFullscreen,
+                Some("MainWindow"),
+            ),
             // Split pane
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::SplitHorizontal)), SplitHorizontal, Some("MainWindow")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::SplitVertical)), SplitVertical, Some("MainWindow")),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::SplitHorizontal)),
+                SplitHorizontal,
+                Some("MainWindow"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::SplitVertical)),
+                SplitVertical,
+                Some("MainWindow"),
+            ),
             // Zoom
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::ZoomIn)), ZoomIn, Some("MainWindow")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::ZoomOut)), ZoomOut, Some("MainWindow")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::ResetZoom)), ResetZoom, Some("MainWindow")),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::ZoomIn)),
+                ZoomIn,
+                Some("MainWindow"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::ZoomOut)),
+                ZoomOut,
+                Some("MainWindow"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::ResetZoom)),
+                ResetZoom,
+                Some("MainWindow"),
+            ),
             // Other
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::CommandPalette)), CommandPalette, Some("MainWindow")),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::CommandPalette)),
+                CommandPalette,
+                Some("MainWindow"),
+            ),
             // Tab switching (Ctrl+1-9)
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::GotoTab1)), GotoTab1, Some("MainWindow")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::GotoTab2)), GotoTab2, Some("MainWindow")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::GotoTab3)), GotoTab3, Some("MainWindow")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::GotoTab4)), GotoTab4, Some("MainWindow")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::GotoTab5)), GotoTab5, Some("MainWindow")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::GotoTab6)), GotoTab6, Some("MainWindow")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::GotoTab7)), GotoTab7, Some("MainWindow")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::GotoTab8)), GotoTab8, Some("MainWindow")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::GotoTab9)), GotoTab9, Some("MainWindow")),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::GotoTab1)),
+                GotoTab1,
+                Some("MainWindow"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::GotoTab2)),
+                GotoTab2,
+                Some("MainWindow"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::GotoTab3)),
+                GotoTab3,
+                Some("MainWindow"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::GotoTab4)),
+                GotoTab4,
+                Some("MainWindow"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::GotoTab5)),
+                GotoTab5,
+                Some("MainWindow"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::GotoTab6)),
+                GotoTab6,
+                Some("MainWindow"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::GotoTab7)),
+                GotoTab7,
+                Some("MainWindow"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::GotoTab8)),
+                GotoTab8,
+                Some("MainWindow"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::GotoTab9)),
+                GotoTab9,
+                Some("MainWindow"),
+            ),
         ]);
 
         // Terminal context keybindings (Terminal operations, Scrolling)
         bindings.extend([
             // Terminal operations
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::Copy)), Copy, Some("Terminal")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::Paste)), Paste, Some("Terminal")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::Search)), Search, Some("Terminal")),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::Copy)),
+                Copy,
+                Some("Terminal"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::Paste)),
+                Paste,
+                Some("Terminal"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::Search)),
+                Search,
+                Some("Terminal"),
+            ),
             // Scrolling
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::ScrollUp)), ScrollUp, Some("Terminal")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::ScrollDown)), ScrollDown, Some("Terminal")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::ScrollPageUp)), ScrollPageUp, Some("Terminal")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::ScrollPageDown)), ScrollPageDown, Some("Terminal")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::ScrollToTop)), ScrollToTop, Some("Terminal")),
-            KeyBinding::new(&norm(kb.get_keybinding(ConfigurableAction::ScrollToBottom)), ScrollToBottom, Some("Terminal")),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::ScrollUp)),
+                ScrollUp,
+                Some("Terminal"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::ScrollDown)),
+                ScrollDown,
+                Some("Terminal"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::ScrollPageUp)),
+                ScrollPageUp,
+                Some("Terminal"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::ScrollPageDown)),
+                ScrollPageDown,
+                Some("Terminal"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::ScrollToTop)),
+                ScrollToTop,
+                Some("Terminal"),
+            ),
+            KeyBinding::new(
+                &norm(kb.get_keybinding(ConfigurableAction::ScrollToBottom)),
+                ScrollToBottom,
+                Some("Terminal"),
+            ),
         ]);
 
         cx.bind_keys(bindings);

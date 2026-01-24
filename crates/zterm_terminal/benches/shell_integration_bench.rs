@@ -1,5 +1,7 @@
 //! Benchmarks for shell integration module
 
+#![allow(clippy::let_and_return)]
+
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use zterm_terminal::shell_integration::{
     CommandState, CommandZone, OscScanner, ShellIntegrationHandler, TextBuffer, TextExtractor,
@@ -316,7 +318,9 @@ fn bench_osc_scanner_mixed_output(c: &mut Criterion) {
 
         // Add output lines
         for i in 0..line_count {
-            data.extend(format!("drwxr-xr-x  2 user user 4096 Jan  1 00:00 dir{}\r\n", i).as_bytes());
+            data.extend(
+                format!("drwxr-xr-x  2 user user 4096 Jan  1 00:00 dir{}\r\n", i).as_bytes(),
+            );
         }
 
         // Command finished
@@ -363,7 +367,13 @@ fn bench_osc_scanner_no_osc(c: &mut Criterion) {
     // Create data with no OSC sequences (worst case for scanner - must check every byte)
     for size_kb in [1, 16, 64] {
         let data: Vec<u8> = (0..size_kb * 1024)
-            .map(|i| if i % 80 == 79 { b'\n' } else { b'a' + (i % 26) as u8 })
+            .map(|i| {
+                if i % 80 == 79 {
+                    b'\n'
+                } else {
+                    b'a' + (i % 26) as u8
+                }
+            })
             .collect();
 
         group.bench_with_input(BenchmarkId::new("kb", size_kb), &data, |b, data| {
@@ -388,9 +398,7 @@ fn bench_extract_lines(c: &mut Criterion) {
             BenchmarkId::from_parameter(line_count),
             &buffer,
             |b, buffer| {
-                b.iter(|| {
-                    black_box(TextExtractor::extract_lines(buffer, 0, Some(line_count)))
-                });
+                b.iter(|| black_box(TextExtractor::extract_lines(buffer, 0, Some(line_count))));
             },
         );
     }
@@ -433,9 +441,7 @@ fn bench_context_summary(c: &mut Criterion) {
             BenchmarkId::from_parameter(line_count),
             &(buffer, zone),
             |b, (buffer, zone)| {
-                b.iter(|| {
-                    black_box(TextExtractor::get_context_summary(buffer, zone, 50))
-                });
+                b.iter(|| black_box(TextExtractor::get_context_summary(buffer, zone, 50)));
             },
         );
     }

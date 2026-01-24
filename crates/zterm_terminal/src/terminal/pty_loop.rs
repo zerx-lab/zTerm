@@ -20,8 +20,8 @@ use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::io::{self, ErrorKind, Read, Write};
 use std::num::NonZeroUsize;
-use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::thread::JoinHandle;
 use std::time::Instant;
 use tracing::error;
@@ -158,7 +158,10 @@ where
             }
             for seq in sequences {
                 // Update current line for certain sequences
-                if matches!(seq, OscSequence::CommandExecuting | OscSequence::PromptStart) {
+                if matches!(
+                    seq,
+                    OscSequence::CommandExecuting | OscSequence::PromptStart
+                ) {
                     // Get current cursor line from terminal if possible
                     if let Some(ref term) = terminal {
                         self.current_line = term.grid().cursor.point.line.0 as usize;
@@ -288,7 +291,8 @@ where
                     for event in events.iter() {
                         match event.key {
                             PTY_CHILD_EVENT_TOKEN => {
-                                if let Some(ChildEvent::Exited(code)) = self.pty.next_child_event() {
+                                if let Some(ChildEvent::Exited(code)) = self.pty.next_child_event()
+                                {
                                     if let Some(code) = code {
                                         self.event_proxy.send_event(AlacTermEvent::ChildExit(code));
                                     }
@@ -333,7 +337,9 @@ where
                     let needs_write = state.needs_write();
                     if needs_write != interest.writable {
                         interest.writable = needs_write;
-                        self.pty.reregister(&self.poll, interest, poll_opts).unwrap();
+                        self.pty
+                            .reregister(&self.poll, interest, poll_opts)
+                            .unwrap();
                     }
                 }
 
@@ -355,7 +361,10 @@ struct Writing {
 impl Writing {
     #[inline]
     fn new(c: Cow<'static, [u8]>) -> Writing {
-        Writing { source: c, written: 0 }
+        Writing {
+            source: c,
+            written: 0,
+        }
     }
 
     #[inline]

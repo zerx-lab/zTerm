@@ -10,7 +10,7 @@
 //! Run with: cargo bench --package zterm_ui
 //! View reports in: target/criterion/report/index.html
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
 use zterm_ui::{
     GridPosition, ImeState, ScrollbarState, Selection, SharedBounds, TabInfo, TerminalTabBar,
@@ -289,13 +289,15 @@ fn bench_terminal_tab_bar(c: &mut Criterion) {
             &num_tabs,
             |b, &num_tabs| {
                 let tabs: Vec<TabInfo> = (0..num_tabs)
-                    .map(|i| TabInfo::new(
-                        i,
-                        format!("Terminal {}", i),
-                        i == 0,
-                        "bash".to_string(),
-                        format!("/home/user/project{}", i),
-                    ))
+                    .map(|i| {
+                        TabInfo::new(
+                            i,
+                            format!("Terminal {}", i),
+                            i == 0,
+                            "bash".to_string(),
+                            format!("/home/user/project{}", i),
+                        )
+                    })
                     .collect();
                 b.iter(|| black_box(TerminalTabBar::new().tabs(tabs.clone())));
             },
@@ -519,13 +521,15 @@ fn bench_integration(c: &mut Criterion) {
         b.iter(|| {
             // Create tabs
             let tabs: Vec<TabInfo> = (0..10)
-                .map(|i| TabInfo::new(
-                    i,
-                    format!("Terminal {}", i),
-                    i == 0,
-                    "bash".to_string(),
-                    format!("/home/user/project{}", i),
-                ))
+                .map(|i| {
+                    TabInfo::new(
+                        i,
+                        format!("Terminal {}", i),
+                        i == 0,
+                        "bash".to_string(),
+                        format!("/home/user/project{}", i),
+                    )
+                })
                 .collect();
 
             // Create tab bar
@@ -616,11 +620,7 @@ fn bench_integration(c: &mut Criterion) {
 // Criterion Groups
 // ============================================================================
 
-criterion_group!(
-    selection_benches,
-    bench_selection,
-    bench_grid_position,
-);
+criterion_group!(selection_benches, bench_selection, bench_grid_position,);
 
 criterion_group!(
     state_benches,

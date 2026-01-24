@@ -38,7 +38,10 @@ impl ThemeManager {
     /// 应该在应用启动时调用一次
     pub fn init(cx: &mut App) {
         let manager = Self::new();
-        info!("ThemeManager initialized with theme: {}", manager.current_theme.name());
+        info!(
+            "ThemeManager initialized with theme: {}",
+            manager.current_theme.name()
+        );
         cx.set_global(manager);
     }
 

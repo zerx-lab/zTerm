@@ -96,7 +96,7 @@ impl Perform for AnsiHandler {
                     grid.set_cursor(next_tab.min(grid.cols() - 1), row);
                 }
                 // Line feed / Vertical tab / Form feed
-                0x0A | 0x0B | 0x0C => {
+                0x0A..=0x0C => {
                     let (col, row) = grid.cursor();
                     if row + 1 >= grid.rows() {
                         grid.scroll_up(1);
@@ -142,7 +142,13 @@ impl Perform for AnsiHandler {
         }
     }
 
-    fn csi_dispatch(&mut self, params: &Params, _intermediates: &[u8], _ignore: bool, action: char) {
+    fn csi_dispatch(
+        &mut self,
+        params: &Params,
+        _intermediates: &[u8],
+        _ignore: bool,
+        action: char,
+    ) {
         let params: Vec<u16> = params.iter().map(|p| p[0]).collect();
 
         // Handle SGR (Select Graphic Rendition) separately as it doesn't need grid

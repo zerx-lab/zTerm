@@ -10,9 +10,9 @@ mod shell;
 
 pub use shell::detect_shell;
 
-use zterm_common::Result;
 use flume::Receiver;
 use std::path::PathBuf;
+use zterm_common::Result;
 
 /// Configuration for creating a PTY
 #[derive(Debug, Clone)]

@@ -16,9 +16,10 @@ pub struct CellFlags {
 }
 
 /// Color representation
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Color {
     /// Default foreground or background
+    #[default]
     Default,
     /// Named color (0-7 for standard, 8-15 for bright)
     Named(u8),
@@ -26,12 +27,6 @@ pub enum Color {
     Indexed(u8),
     /// True color RGB
     Rgb(u8, u8, u8),
-}
-
-impl Default for Color {
-    fn default() -> Self {
-        Color::Default
-    }
 }
 
 /// A single cell in the terminal grid

@@ -11,8 +11,8 @@ pub mod shell_integration;
 pub mod theme;
 
 pub use components::title_bar::{
-    LinuxWindowControls, NewTab, PlatformStyle, TitleBarEvent, WindowsWindowControls,
-    TITLE_BAR_HEIGHT,
+    LinuxWindowControls, NewTab, PlatformStyle, TITLE_BAR_HEIGHT, TitleBarEvent,
+    WindowsWindowControls,
 };
 pub use components::{
     ContextMenuItem, ContextMenuState, Copy, GridPosition, ImeState, Paste, ScrollDown,

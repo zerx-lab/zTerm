@@ -11,12 +11,12 @@
 //! View reports in: target/criterion/report/index.html
 
 use criterion::{
-    black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput,
+    BatchSize, BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main,
 };
 
+use zterm_terminal::TerminalSize;
 use zterm_terminal::buffer::{Cell, CellFlags, Color, Grid, Row};
 use zterm_terminal::parser::AnsiParser;
-use zterm_terminal::TerminalSize;
 
 // ============================================================================
 // Grid Benchmarks
@@ -375,18 +375,14 @@ fn bench_ansi_parser_plain_text(c: &mut Criterion) {
         let bytes = text.as_bytes();
 
         group.throughput(Throughput::Bytes(bytes.len() as u64));
-        group.bench_with_input(
-            BenchmarkId::new("bytes", bytes.len()),
-            bytes,
-            |b, bytes| {
-                let mut parser = AnsiParser::new();
-                let mut grid = Grid::new(80, 100);
-                b.iter(|| {
-                    parser.process(black_box(bytes), &mut grid);
-                    grid.set_cursor(0, 0);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("bytes", bytes.len()), bytes, |b, bytes| {
+            let mut parser = AnsiParser::new();
+            let mut grid = Grid::new(80, 100);
+            b.iter(|| {
+                parser.process(black_box(bytes), &mut grid);
+                grid.set_cursor(0, 0);
+            });
+        });
     }
 
     group.finish();
@@ -540,7 +536,10 @@ fn bench_terminal_size(c: &mut Criterion) {
 
     group.bench_function("comparison", |b| {
         let size1 = TerminalSize { cols: 80, rows: 24 };
-        let size2 = TerminalSize { cols: 120, rows: 40 };
+        let size2 = TerminalSize {
+            cols: 120,
+            rows: 40,
+        };
         b.iter(|| {
             black_box(size1 == size2);
             black_box(size1 != size2);

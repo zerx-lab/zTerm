@@ -7,8 +7,9 @@
 //! - Captures OSC 133/633 for shell integration
 
 use super::pty_loop::{Msg as PtyMsg, Notifier as PtyNotifier, OscEvent, PtyEventLoop};
-use crate::shell_integration::{OscSequence, ShellIntegrationHandler, ZoneManager};
 use crate::TerminalEvent;
+use crate::shell_integration::{OscSequence, ShellIntegrationHandler, ZoneManager};
+use alacritty_terminal::Term;
 use alacritty_terminal::event::{Event as AlacTermEvent, EventListener, WindowSize};
 use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::index::{Column, Direction as AlacDirection, Line, Point as AlacPoint};
@@ -17,12 +18,11 @@ use alacritty_terminal::sync::FairMutex;
 use alacritty_terminal::term::cell::Cell;
 use alacritty_terminal::term::{Config, RenderableCursor, TermMode};
 use alacritty_terminal::tty;
-use alacritty_terminal::Term;
 use gpui::{AsyncApp, Bounds, Context, EventEmitter, Pixels, Size, Task, px};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::mpsc;
 use std::sync::Arc;
+use std::sync::mpsc;
 use std::time::Duration;
 use tracing::{error, info};
 
@@ -311,7 +311,10 @@ impl Terminal {
             Ok(el) => el,
             Err(e) => {
                 error!("Failed to create event loop: {}", e);
-                cx.emit(TerminalEvent::Error(format!("Failed to create event loop: {}", e)));
+                cx.emit(TerminalEvent::Error(format!(
+                    "Failed to create event loop: {}",
+                    e
+                )));
                 return Self::create_error_terminal(working_directory, size, cx);
             }
         };
@@ -397,9 +400,9 @@ impl Terminal {
                     batch_buffer.clear();
                     let mut wakeup = false;
 
-                    let timer = futures::FutureExt::fuse(
-                        smol::Timer::after(Duration::from_millis(EVENT_BATCH_INTERVAL_MS))
-                    );
+                    let timer = futures::FutureExt::fuse(smol::Timer::after(
+                        Duration::from_millis(EVENT_BATCH_INTERVAL_MS),
+                    ));
                     futures::pin_mut!(timer);
 
                     loop {
@@ -480,7 +483,9 @@ impl Terminal {
             }
             AlacTermEvent::ChildExit(code) => {
                 self.exited = true;
-                cx.emit(TerminalEvent::ProcessExited { exit_code: Some(code) });
+                cx.emit(TerminalEvent::ProcessExited {
+                    exit_code: Some(code),
+                });
             }
             AlacTermEvent::PtyWrite(data) => {
                 self.write_to_pty(data.into_bytes());
@@ -510,7 +515,16 @@ impl Terminal {
         let terminal_bounds = self.last_content.terminal_bounds;
 
         // Minimize lock scope - extract all needed data in one pass
-        let (mode, display_offset, selection, cursor, cursor_char, total_lines, screen_lines, history_size) = {
+        let (
+            mode,
+            display_offset,
+            selection,
+            cursor,
+            cursor_char,
+            total_lines,
+            screen_lines,
+            history_size,
+        ) = {
             let term = self.term.lock();
             let content = term.renderable_content();
 
@@ -636,13 +650,20 @@ impl Terminal {
             }
             OscSequence::WorkingDirectory { path } | OscSequence::Osc7WorkingDirectory { path } => {
                 self.working_directory = PathBuf::from(&path);
-                self.shell_handler.zone_manager_mut().set_working_directory(path);
+                self.shell_handler
+                    .zone_manager_mut()
+                    .set_working_directory(path);
             }
         }
     }
 
     /// Handle an OSC sequence with context (for external calls)
-    pub fn handle_osc_sequence_with_cx(&mut self, seq: OscSequence, line: usize, cx: &mut Context<Self>) {
+    pub fn handle_osc_sequence_with_cx(
+        &mut self,
+        seq: OscSequence,
+        line: usize,
+        cx: &mut Context<Self>,
+    ) {
         self.handle_osc_sequence(seq, line);
 
         // Emit shell events
@@ -660,16 +681,17 @@ impl Terminal {
 
     /// Get the zone at a specific line
     pub fn zone_at_line(&self, line: usize) -> Option<ZoneInfo> {
-        self.shell_handler.zone_manager().zone_at_line(line).map(|zone| {
-            ZoneInfo {
+        self.shell_handler
+            .zone_manager()
+            .zone_at_line(line)
+            .map(|zone| ZoneInfo {
                 start_line: zone.start_line,
                 end_line: zone.end_line,
                 is_prompt_line: true,
                 is_running: zone.state.is_running(),
                 exit_code: zone.state.exit_code(),
                 command: zone.command.clone(),
-            }
-        })
+            })
     }
 
     /// Navigate to previous prompt

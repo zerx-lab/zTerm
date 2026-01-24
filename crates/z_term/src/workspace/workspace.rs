@@ -1,9 +1,9 @@
 //! Workspace management
 
-use zterm_terminal::{Terminal, TerminalSize};
-use zterm_ui::TerminalView;
 use gpui::*;
 use tracing::debug;
+use zterm_terminal::{Terminal, TerminalSize};
+use zterm_ui::TerminalView;
 
 /// Information about a tab
 pub struct TabInfo {

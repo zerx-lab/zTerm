@@ -1,14 +1,14 @@
 //! Windows PTY implementation using ConPTY
 
-use super::{detect_shell, PtyConfig};
-use zterm_common::{Error, Result};
+use super::{PtyConfig, detect_shell};
 use flume::Sender;
 use parking_lot::Mutex;
-use portable_pty::{native_pty_system, CommandBuilder, PtyPair, PtySize};
+use portable_pty::{CommandBuilder, PtyPair, PtySize, native_pty_system};
 use std::io::{Read, Write};
 use std::sync::Arc;
 use std::thread;
 use tracing::{debug, error};
+use zterm_common::{Error, Result};
 
 /// Windows PTY handle using ConPTY
 pub struct WindowsPty {

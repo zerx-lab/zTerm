@@ -72,7 +72,10 @@ mod menu_item_state_tests {
 
         let copy_item = state.find_item(ContextMenuAction::Copy);
         assert!(copy_item.is_some(), "应该有复制菜单项");
-        assert!(!copy_item.unwrap().is_enabled(), "没有选择文本时复制应该禁用");
+        assert!(
+            !copy_item.unwrap().is_enabled(),
+            "没有选择文本时复制应该禁用"
+        );
     }
 
     #[test]
@@ -83,11 +86,17 @@ mod menu_item_state_tests {
         state.set_has_selection(true);
         let paste_item = state.find_item(ContextMenuAction::Paste);
         assert!(paste_item.is_some(), "应该有粘贴菜单项");
-        assert!(paste_item.unwrap().is_enabled(), "粘贴应该始终可用 (有选择)");
+        assert!(
+            paste_item.unwrap().is_enabled(),
+            "粘贴应该始终可用 (有选择)"
+        );
 
         state.set_has_selection(false);
         let paste_item = state.find_item(ContextMenuAction::Paste);
-        assert!(paste_item.unwrap().is_enabled(), "粘贴应该始终可用 (无选择)");
+        assert!(
+            paste_item.unwrap().is_enabled(),
+            "粘贴应该始终可用 (无选择)"
+        );
     }
 
     #[test]
@@ -100,8 +109,12 @@ mod menu_item_state_tests {
 
         // 检查菜单项的顺序
         let actions: Vec<_> = items.iter().map(|item| item.action()).collect();
-        let copy_index = actions.iter().position(|a| matches!(a, ContextMenuAction::Copy));
-        let paste_index = actions.iter().position(|a| matches!(a, ContextMenuAction::Paste));
+        let copy_index = actions
+            .iter()
+            .position(|a| matches!(a, ContextMenuAction::Copy));
+        let paste_index = actions
+            .iter()
+            .position(|a| matches!(a, ContextMenuAction::Paste));
 
         assert!(copy_index.is_some(), "应该有复制菜单项");
         assert!(paste_index.is_some(), "应该有粘贴菜单项");
@@ -120,16 +133,20 @@ mod menu_item_action_tests {
     fn test_can_execute_copy_with_selection() {
         let mut state = ContextMenuState::new();
         state.set_has_selection(true);
-        assert!(state.can_execute_action(ContextMenuAction::Copy),
-                "有选择文本时应该可以执行复制");
+        assert!(
+            state.can_execute_action(ContextMenuAction::Copy),
+            "有选择文本时应该可以执行复制"
+        );
     }
 
     #[test]
     fn test_cannot_execute_copy_without_selection() {
         let mut state = ContextMenuState::new();
         state.set_has_selection(false);
-        assert!(!state.can_execute_action(ContextMenuAction::Copy),
-                "没有选择文本时不应该可以执行复制");
+        assert!(
+            !state.can_execute_action(ContextMenuAction::Copy),
+            "没有选择文本时不应该可以执行复制"
+        );
     }
 
     #[test]
@@ -137,12 +154,16 @@ mod menu_item_action_tests {
         let mut state = ContextMenuState::new();
 
         state.set_has_selection(true);
-        assert!(state.can_execute_action(ContextMenuAction::Paste),
-                "有选择文本时应该可以执行粘贴");
+        assert!(
+            state.can_execute_action(ContextMenuAction::Paste),
+            "有选择文本时应该可以执行粘贴"
+        );
 
         state.set_has_selection(false);
-        assert!(state.can_execute_action(ContextMenuAction::Paste),
-                "没有选择文本时也应该可以执行粘贴");
+        assert!(
+            state.can_execute_action(ContextMenuAction::Paste),
+            "没有选择文本时也应该可以执行粘贴"
+        );
     }
 
     #[test]
@@ -185,13 +206,15 @@ mod edge_case_tests {
 
         // 菜单显示时改变选择状态
         state.set_has_selection(false);
-        let copy_disabled = state.find_item(ContextMenuAction::Copy)
+        let copy_disabled = state
+            .find_item(ContextMenuAction::Copy)
             .map(|item| !item.is_enabled())
             .unwrap_or(false);
         assert!(copy_disabled, "改变选择状态应该立即影响菜单项");
 
         state.set_has_selection(true);
-        let copy_enabled = state.find_item(ContextMenuAction::Copy)
+        let copy_enabled = state
+            .find_item(ContextMenuAction::Copy)
             .map(|item| item.is_enabled())
             .unwrap_or(false);
         assert!(copy_enabled, "恢复选择状态应该立即启用复制");
@@ -204,8 +227,10 @@ mod edge_case_tests {
         state.set_has_selection(false);
 
         let copy_item = state.find_item(ContextMenuAction::Copy);
-        assert!(copy_item.is_some() && !copy_item.unwrap().is_enabled(),
-                "空选择应该禁用复制");
+        assert!(
+            copy_item.is_some() && !copy_item.unwrap().is_enabled(),
+            "空选择应该禁用复制"
+        );
     }
 
     #[test]

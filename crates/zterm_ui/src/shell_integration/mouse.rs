@@ -272,10 +272,7 @@ mod tests {
     fn test_screen_to_cell() {
         let handler = default_handler();
 
-        assert_eq!(
-            handler.screen_to_cell(Point::new(28.0, 25.0)),
-            Some((1, 1))
-        );
+        assert_eq!(handler.screen_to_cell(Point::new(28.0, 25.0)), Some((1, 1)));
     }
 
     #[test]
@@ -339,14 +336,9 @@ mod tests {
     fn test_hover_state_from_position_zone() {
         let handler = default_handler();
 
-        let state =
-            HoverState::from_position(&handler, Point::new(30.0, 25.0), |line| {
-                if line == 1 {
-                    Some((0, false))
-                } else {
-                    None
-                }
-            });
+        let state = HoverState::from_position(&handler, Point::new(30.0, 25.0), |line| {
+            if line == 1 { Some((0, false)) } else { None }
+        });
 
         assert!(matches!(
             state,
@@ -362,14 +354,9 @@ mod tests {
     fn test_hover_state_from_position_output() {
         let handler = default_handler();
 
-        let state =
-            HoverState::from_position(&handler, Point::new(30.0, 45.0), |line| {
-                if line == 2 {
-                    Some((0, true))
-                } else {
-                    None
-                }
-            });
+        let state = HoverState::from_position(&handler, Point::new(30.0, 45.0), |line| {
+            if line == 2 { Some((0, true)) } else { None }
+        });
 
         assert!(matches!(
             state,

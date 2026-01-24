@@ -187,7 +187,11 @@ fn test_registry_multiple_themes() {
     let mut registry = ThemeRegistry::new();
 
     registry.register(Theme::new("Theme 1", Appearance::Dark, test_theme_colors()));
-    registry.register(Theme::new("Theme 2", Appearance::Light, test_theme_colors()));
+    registry.register(Theme::new(
+        "Theme 2",
+        Appearance::Light,
+        test_theme_colors(),
+    ));
     registry.register(Theme::new("Theme 3", Appearance::Dark, test_theme_colors()));
 
     assert_eq!(registry.all().len(), 3);

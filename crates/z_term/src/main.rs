@@ -9,7 +9,7 @@
 use anyhow::Result;
 use gpui::*;
 use tracing::info;
-use zterm_common::{log_startup_phases, mark_phase, start_timer, AppSettings, LogGuard};
+use zterm_common::{AppSettings, LogGuard, log_startup_phases, mark_phase, start_timer};
 
 mod app;
 mod settings;

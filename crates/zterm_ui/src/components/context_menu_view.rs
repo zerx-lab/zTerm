@@ -7,10 +7,7 @@ use axon_ui::ThemeContext;
 use gpui::*;
 
 // 菜单导航 actions
-actions!(
-    context_menu,
-    [SelectPrevious, SelectNext, Confirm, Cancel]
-);
+actions!(context_menu, [SelectPrevious, SelectNext, Confirm, Cancel]);
 
 /// 菜单项渲染数据
 #[derive(Clone)]
@@ -172,15 +169,18 @@ impl ContextMenuView {
             base = base.text_color(colors.menu_item_disabled_text);
         }
 
-        base = base.on_mouse_down(MouseButton::Left, cx.listener(move |this, _, window, cx| {
-            if !enabled {
-                return;
-            }
-            if let Some(handler) = &this.on_action {
-                handler(action.clone(), window, cx);
-            }
-            cx.emit(DismissEvent);
-        }));
+        base = base.on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |this, _, window, cx| {
+                if !enabled {
+                    return;
+                }
+                if let Some(handler) = &this.on_action {
+                    handler(action.clone(), window, cx);
+                }
+                cx.emit(DismissEvent);
+            }),
+        );
 
         base = base.on_hover(cx.listener(move |this, hovered, _, cx| {
             if *hovered && enabled {

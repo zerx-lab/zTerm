@@ -727,7 +727,12 @@ impl TerminalView {
     }
 
     /// Show context menu at the specified position
-    fn show_context_menu(&mut self, position: Point<Pixels>, window: &mut Window, cx: &mut Context<Self>) {
+    fn show_context_menu(
+        &mut self,
+        position: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         // 关闭旧菜单（如果存在）
         self.context_menu = None;
 
@@ -751,11 +756,12 @@ impl TerminalView {
         window.focus(&menu.focus_handle(cx), cx);
 
         // 订阅关闭事件
-        let subscription = cx.subscribe_in(&menu, window, |this, _, _: &DismissEvent, window, cx| {
-            this.context_menu = None;
-            window.focus(&this.focus_handle, cx);
-            cx.notify();
-        });
+        let subscription =
+            cx.subscribe_in(&menu, window, |this, _, _: &DismissEvent, window, cx| {
+                this.context_menu = None;
+                window.focus(&this.focus_handle, cx);
+                cx.notify();
+            });
 
         self.context_menu = Some((menu, position, subscription));
         cx.notify();
@@ -1068,13 +1074,7 @@ impl Render for TerminalView {
             let menu_clone = menu.clone();
             let position = *position;
 
-            container = container.child(
-                deferred(
-                    anchored()
-                        .position(position)
-                        .child(menu_clone)
-                )
-            );
+            container = container.child(deferred(anchored().position(position).child(menu_clone)));
         }
 
         container

@@ -66,7 +66,10 @@ fn test_osc_scanner_mixed_with_normal_output() {
     assert_eq!(sequences.len(), 3);
     assert_eq!(sequences[0], OscSequence::PromptStart);
     assert_eq!(sequences[1], OscSequence::CommandStart);
-    assert!(matches!(sequences[2], OscSequence::CommandFinished { exit_code: 0 }));
+    assert!(matches!(
+        sequences[2],
+        OscSequence::CommandFinished { exit_code: 0 }
+    ));
 }
 
 #[test]

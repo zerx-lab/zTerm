@@ -85,7 +85,12 @@ impl AiCommandContext {
     }
 
     /// Set the output
-    pub fn with_output(mut self, output: impl Into<String>, line_count: usize, truncated: bool) -> Self {
+    pub fn with_output(
+        mut self,
+        output: impl Into<String>,
+        line_count: usize,
+        truncated: bool,
+    ) -> Self {
         self.output = Some(output.into());
         self.output_line_count = line_count;
         self.output_truncated = truncated;
@@ -173,9 +178,7 @@ impl AiIntent {
     /// Get the preamble text for this intent
     pub fn preamble(&self) -> &str {
         match self {
-            AiIntent::ExplainCommand => {
-                "Please explain what this command does and its options:"
-            }
+            AiIntent::ExplainCommand => "Please explain what this command does and its options:",
             AiIntent::AnalyzeOutput => {
                 "Please analyze this command output and summarize the key information:"
             }
@@ -400,7 +403,11 @@ mod tests {
         assert!(AiIntent::ExplainCommand.preamble().contains("explain"));
         assert!(AiIntent::AnalyzeOutput.preamble().contains("analyze"));
         assert!(AiIntent::DebugError.preamble().contains("failed"));
-        assert!(AiIntent::SuggestImprovements.preamble().contains("improvements"));
+        assert!(
+            AiIntent::SuggestImprovements
+                .preamble()
+                .contains("improvements")
+        );
     }
 
     #[test]
@@ -460,11 +467,7 @@ mod tests {
             .with_shell_type("bash")
             .with_current_directory("/home");
 
-        session.add_command(
-            AiCommandContext::new()
-                .with_command("ls")
-                .with_exit_code(0),
-        );
+        session.add_command(AiCommandContext::new().with_command("ls").with_exit_code(0));
 
         let summary = session.to_session_summary();
         assert!(summary.contains("bash"));

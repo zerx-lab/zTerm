@@ -74,10 +74,8 @@ impl ContextMenuState {
     /// 创建默认的菜单项
     fn create_default_items(has_selection: bool) -> Vec<ContextMenuItem> {
         vec![
-            ContextMenuItem::new(ContextMenuAction::Copy, "复制")
-                .enabled(has_selection),
-            ContextMenuItem::new(ContextMenuAction::Paste, "粘贴")
-                .enabled(true),
+            ContextMenuItem::new(ContextMenuAction::Copy, "复制").enabled(has_selection),
+            ContextMenuItem::new(ContextMenuAction::Paste, "粘贴").enabled(true),
         ]
     }
 
@@ -160,8 +158,7 @@ mod tests {
 
     #[test]
     fn test_context_menu_item_disabled() {
-        let item = ContextMenuItem::new(ContextMenuAction::Copy, "复制")
-            .enabled(false);
+        let item = ContextMenuItem::new(ContextMenuAction::Copy, "复制").enabled(false);
         assert!(!item.is_enabled());
     }
 

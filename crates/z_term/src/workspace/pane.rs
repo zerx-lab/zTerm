@@ -1,8 +1,8 @@
 //! Pane management for split views
 
+use gpui::*;
 use zterm_terminal::Terminal;
 use zterm_ui::TerminalView;
-use gpui::*;
 
 /// Layout direction for panes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -120,7 +120,12 @@ impl TextExtractor {
                     "... ({} lines omitted) ...",
                     total_line_count - max_output_lines
                 ));
-                result.extend(output_lines.iter().skip(total_line_count.saturating_sub(half)).cloned());
+                result.extend(
+                    output_lines
+                        .iter()
+                        .skip(total_line_count.saturating_sub(half))
+                        .cloned(),
+                );
                 result
             } else {
                 output_lines

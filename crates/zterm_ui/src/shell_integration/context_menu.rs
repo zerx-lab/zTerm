@@ -401,9 +401,9 @@ mod tests {
         let menu = build_context_menu(&ctx);
 
         // Find copy output action
-        let copy_output = menu.iter().find(|e| {
-            matches!(e, MenuEntry::Item(item) if item.action == ContextMenuAction::CopyOutput)
-        });
+        let copy_output = menu.iter().find(
+            |e| matches!(e, MenuEntry::Item(item) if item.action == ContextMenuAction::CopyOutput),
+        );
         assert!(copy_output.is_some());
         if let MenuEntry::Item(item) = copy_output.unwrap() {
             assert!(item.enabled);

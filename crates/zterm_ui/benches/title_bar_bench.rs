@@ -2,7 +2,7 @@
 //!
 //! Run with: cargo bench -p zterm_ui
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use zterm_ui::TabInfo;
 
 fn create_tab_info(id: usize) -> TabInfo {
@@ -19,12 +19,16 @@ fn benchmark_tab_info_creation(c: &mut Criterion) {
     let mut group = c.benchmark_group("TabInfo Creation");
 
     for count in [1, 10, 50, 100, 500].iter() {
-        group.bench_with_input(BenchmarkId::new("create_tabs", count), count, |b, &count| {
-            b.iter(|| {
-                let tabs: Vec<TabInfo> = (0..count).map(|i| create_tab_info(i)).collect();
-                black_box(tabs)
-            });
-        });
+        group.bench_with_input(
+            BenchmarkId::new("create_tabs", count),
+            count,
+            |b, &count| {
+                b.iter(|| {
+                    let tabs: Vec<TabInfo> = (0..count).map(|i| create_tab_info(i)).collect();
+                    black_box(tabs)
+                });
+            },
+        );
     }
 
     group.finish();
@@ -35,9 +39,22 @@ fn benchmark_display_directory(c: &mut Criterion) {
 
     // Test with various path types
     let paths = vec![
-        ("home", dirs::home_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|| "/home/user".to_string())),
-        ("home_subdir", dirs::home_dir().map(|p| p.join("projects").to_string_lossy().to_string()).unwrap_or_else(|| "/home/user/projects".to_string())),
-        ("deep_path", "/home/user/projects/myapp/src/components/ui/buttons".to_string()),
+        (
+            "home",
+            dirs::home_dir()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|| "/home/user".to_string()),
+        ),
+        (
+            "home_subdir",
+            dirs::home_dir()
+                .map(|p| p.join("projects").to_string_lossy().to_string())
+                .unwrap_or_else(|| "/home/user/projects".to_string()),
+        ),
+        (
+            "deep_path",
+            "/home/user/projects/myapp/src/components/ui/buttons".to_string(),
+        ),
         ("root", "/".to_string()),
         ("short", "/tmp".to_string()),
     ];
@@ -45,9 +62,13 @@ fn benchmark_display_directory(c: &mut Criterion) {
     for (name, path) in paths {
         let tab = TabInfo::new(0, "Test".to_string(), true, "bash".to_string(), path);
 
-        group.bench_with_input(BenchmarkId::new("display_directory", name), &tab, |b, tab| {
-            b.iter(|| black_box(tab.display_directory()));
-        });
+        group.bench_with_input(
+            BenchmarkId::new("display_directory", name),
+            &tab,
+            |b, tab| {
+                b.iter(|| black_box(tab.display_directory()));
+            },
+        );
     }
 
     group.finish();

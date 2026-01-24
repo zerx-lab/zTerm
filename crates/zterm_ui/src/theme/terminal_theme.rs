@@ -1,8 +1,8 @@
 //! Terminal theme definitions
 
+use axon_ui::ThemeContext;
 use gpui::*;
 use zterm_common::Config;
-use axon_ui::ThemeContext;
 
 /// Theme configuration for the terminal
 #[derive(Clone)]

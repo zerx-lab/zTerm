@@ -13,10 +13,14 @@
 //! - Content outside the new view area disappears
 //! - After restoring, history content appears garbled
 
-use alacritty_terminal::event::{Event as AlacEvent, EventListener, WindowSize};
+#![allow(clippy::assertions_on_constants)]
+#![allow(unused_variables)]
+#![allow(unused_assignments)]
+
+use alacritty_terminal::event::{Event as AlacEvent, EventListener};
 use alacritty_terminal::grid::{Dimensions, Scroll};
-use alacritty_terminal::index::{Column, Line, Point};
-use alacritty_terminal::term::cell::Flags;
+use alacritty_terminal::index::{Column, Direction, Line, Point};
+use alacritty_terminal::selection::{Selection, SelectionType};
 use alacritty_terminal::term::{Config, Term};
 use alacritty_terminal::vte::ansi::{Processor, StdSyncHandler};
 
@@ -154,8 +158,15 @@ fn test_pixel_based_resize_scenario() {
     let initial_bounds = SimulatedTerminalBounds::small_window();
 
     println!("=== Initial Window ===");
-    println!("Dimensions: {}x{} px", initial_bounds.width_px, initial_bounds.height_px);
-    println!("Grid: {} cols x {} lines", initial_bounds.num_columns(), initial_bounds.num_lines());
+    println!(
+        "Dimensions: {}x{} px",
+        initial_bounds.width_px, initial_bounds.height_px
+    );
+    println!(
+        "Grid: {} cols x {} lines",
+        initial_bounds.num_columns(),
+        initial_bounds.num_lines()
+    );
 
     let config = Config {
         scrolling_history: 10000,
@@ -165,14 +176,22 @@ fn test_pixel_based_resize_scenario() {
     let mut term = Term::new(config, &initial_bounds, listener);
 
     // Simulate shell session with lots of output
-    write_to_terminal(&mut term, "user@host:~$ find / -name '*.rs' 2>/dev/null\r\n");
+    write_to_terminal(
+        &mut term,
+        "user@host:~$ find / -name '*.rs' 2>/dev/null\r\n",
+    );
 
     // Simulate 200 lines of output (well exceeds 37-line view)
     for i in 1..=200 {
-        write_to_terminal(&mut term, &format!(
-            "/home/user/project{}/src/module{}/file{:03}.rs\r\n",
-            i % 10, i % 5, i
-        ));
+        write_to_terminal(
+            &mut term,
+            &format!(
+                "/home/user/project{}/src/module{}/file{:03}.rs\r\n",
+                i % 10,
+                i % 5,
+                i
+            ),
+        );
     }
 
     write_to_terminal(&mut term, "user@host:~$ ");
@@ -183,7 +202,10 @@ fn test_pixel_based_resize_scenario() {
 
     // Verify first output is in scrollback
     let all_content = get_all_text_with_scrollback(&term);
-    assert!(all_content.contains("file001.rs"), "file001.rs should be in scrollback");
+    assert!(
+        all_content.contains("file001.rs"),
+        "file001.rs should be in scrollback"
+    );
 
     // STEP 1: User scrolls up to view history
     term.scroll_display(Scroll::Delta(100)); // Scroll up 100 lines
@@ -193,13 +215,20 @@ fn test_pixel_based_resize_scenario() {
 
     // Get what user is currently viewing
     let visible_before_maximize = get_visible_text(&term);
-    println!("First visible line: {}", visible_before_maximize.lines().next().unwrap_or("(empty)"));
+    println!(
+        "First visible line: {}",
+        visible_before_maximize.lines().next().unwrap_or("(empty)")
+    );
 
     // STEP 2: User double-clicks titlebar (MAXIMIZE)
     let maximized_bounds = SimulatedTerminalBounds::maximized();
-    println!("\n=== MAXIMIZE: {}x{} px ({} cols x {} lines) ===",
-             maximized_bounds.width_px, maximized_bounds.height_px,
-             maximized_bounds.num_columns(), maximized_bounds.num_lines());
+    println!(
+        "\n=== MAXIMIZE: {}x{} px ({} cols x {} lines) ===",
+        maximized_bounds.width_px,
+        maximized_bounds.height_px,
+        maximized_bounds.num_columns(),
+        maximized_bounds.num_lines()
+    );
 
     term.resize(maximized_bounds);
 
@@ -212,15 +241,22 @@ fn test_pixel_based_resize_scenario() {
 
     // STEP 3: User restores window (clicks titlebar again)
     let restored_bounds = SimulatedTerminalBounds::restored();
-    println!("\n=== RESTORE: {}x{} px ({} cols x {} lines) ===",
-             restored_bounds.width_px, restored_bounds.height_px,
-             restored_bounds.num_columns(), restored_bounds.num_lines());
+    println!(
+        "\n=== RESTORE: {}x{} px ({} cols x {} lines) ===",
+        restored_bounds.width_px,
+        restored_bounds.height_px,
+        restored_bounds.num_columns(),
+        restored_bounds.num_lines()
+    );
 
     term.resize(restored_bounds);
 
     let scroll_offset_after_restore = term.grid().display_offset();
     println!("History size after restore: {}", term.history_size());
-    println!("Display offset after restore: {}", scroll_offset_after_restore);
+    println!(
+        "Display offset after restore: {}",
+        scroll_offset_after_restore
+    );
 
     // BUG CHECK: Verify content is preserved
     let all_content_after = get_all_text_with_scrollback(&term);
@@ -236,10 +272,22 @@ fn test_pixel_based_resize_scenario() {
     println!("file200.rs present: {}", has_file200);
     println!("Prompt present: {}", has_prompt);
 
-    assert!(has_file001, "BUG: file001.rs was lost during maximize/restore");
-    assert!(has_file100, "BUG: file100.rs was lost during maximize/restore");
-    assert!(has_file200, "BUG: file200.rs was lost during maximize/restore");
-    assert!(has_prompt, "BUG: Shell prompt was lost during maximize/restore");
+    assert!(
+        has_file001,
+        "BUG: file001.rs was lost during maximize/restore"
+    );
+    assert!(
+        has_file100,
+        "BUG: file100.rs was lost during maximize/restore"
+    );
+    assert!(
+        has_file200,
+        "BUG: file200.rs was lost during maximize/restore"
+    );
+    assert!(
+        has_prompt,
+        "BUG: Shell prompt was lost during maximize/restore"
+    );
 
     // BUG CHECK: User should be able to scroll to view old content
     term.scroll_display(Scroll::Delta(100)); // Try to scroll up
@@ -366,7 +414,10 @@ fn test_scroll_offset_sync_after_resize() {
     // BUG SCENARIO: View's scroll_offset may now be stale!
     // If view_scroll_offset > new_history_size, there's a problem
     if view_scroll_offset > new_history_size {
-        println!("WARNING: View scroll_offset {} > history_size {}", view_scroll_offset, new_history_size);
+        println!(
+            "WARNING: View scroll_offset {} > history_size {}",
+            view_scroll_offset, new_history_size
+        );
     }
 
     // In the real code, TerminalView needs to clamp scroll_offset
@@ -379,14 +430,19 @@ fn test_scroll_offset_sync_after_resize() {
     let restored_history_size = term.history_size();
 
     println!("\nAfter restore:");
-    println!("View scroll_offset: {} (possibly stale)", view_scroll_offset);
+    println!(
+        "View scroll_offset: {} (possibly stale)",
+        view_scroll_offset
+    );
     println!("Term display_offset: {}", restored_display_offset);
     println!("History size: {}", restored_history_size);
 
     // Again, scroll_offset may be invalid
     if view_scroll_offset > restored_history_size {
-        println!("BUG CONDITION: scroll_offset {} > history_size {} after restore",
-                 view_scroll_offset, restored_history_size);
+        println!(
+            "BUG CONDITION: scroll_offset {} > history_size {} after restore",
+            view_scroll_offset, restored_history_size
+        );
     }
 
     // The view should sync its scroll_offset with the terminal
@@ -395,7 +451,9 @@ fn test_scroll_offset_sync_after_resize() {
     // Now try to scroll
     let max_scroll = restored_history_size;
     let scroll_delta = 10;
-    let new_scroll = view_scroll_offset.saturating_add(scroll_delta).min(max_scroll);
+    let new_scroll = view_scroll_offset
+        .saturating_add(scroll_delta)
+        .min(max_scroll);
     term.scroll_display(Scroll::Delta(scroll_delta as i32));
 
     println!("\nAfter manual scroll:");
@@ -464,24 +522,37 @@ fn test_screen_larger_than_content() {
         write_to_terminal(&mut term, &format!("Short content {:02}\r\n", i));
     }
 
-    println!("Initial: {} history, {} screen lines", term.history_size(), term.screen_lines());
+    println!(
+        "Initial: {} history, {} screen lines",
+        term.history_size(),
+        term.screen_lines()
+    );
 
     // Maximize to very large screen
     let huge_bounds = SimulatedTerminalBounds::new(2560.0, 1440.0, 8.0, 16.0); // ~90 lines
     term.resize(huge_bounds);
 
-    println!("After maximize: {} history, {} screen lines", term.history_size(), term.screen_lines());
+    println!(
+        "After maximize: {} history, {} screen lines",
+        term.history_size(),
+        term.screen_lines()
+    );
 
     // All content should be visible, no scrollback needed
     assert_eq!(
-        term.history_size(), 0,
+        term.history_size(),
+        0,
         "With large screen, all content should be visible (no scrollback)"
     );
 
     // Restore to small
     term.resize(small_bounds);
 
-    println!("After restore: {} history, {} screen lines", term.history_size(), term.screen_lines());
+    println!(
+        "After restore: {} history, {} screen lines",
+        term.history_size(),
+        term.screen_lines()
+    );
 
     // Content should still be there
     let all_content = get_all_text_with_scrollback(&term);
@@ -499,9 +570,6 @@ fn test_screen_larger_than_content() {
 /// Selection state might affect resize behavior
 #[test]
 fn test_resize_with_active_selection() {
-    use alacritty_terminal::selection::{Selection, SelectionType};
-    use alacritty_terminal::index::Direction;
-
     let bounds = SimulatedTerminalBounds::small_window();
 
     let config = Config {
@@ -565,7 +633,10 @@ fn test_display_offset_clamping() {
     let offset_before = term.grid().display_offset();
     let history_before = term.history_size();
 
-    println!("Before resize: offset={}, history={}", offset_before, history_before);
+    println!(
+        "Before resize: offset={}, history={}",
+        offset_before, history_before
+    );
 
     // Maximize (will change history size)
     let max_bounds = SimulatedTerminalBounds::maximized();
@@ -574,7 +645,10 @@ fn test_display_offset_clamping() {
     let offset_after_max = term.grid().display_offset();
     let history_after_max = term.history_size();
 
-    println!("After maximize: offset={}, history={}", offset_after_max, history_after_max);
+    println!(
+        "After maximize: offset={}, history={}",
+        offset_after_max, history_after_max
+    );
 
     // Display offset should be clamped to new history size
     assert!(
@@ -590,7 +664,10 @@ fn test_display_offset_clamping() {
     let offset_after_restore = term.grid().display_offset();
     let history_after_restore = term.history_size();
 
-    println!("After restore: offset={}, history={}", offset_after_restore, history_after_restore);
+    println!(
+        "After restore: offset={}, history={}",
+        offset_after_restore, history_after_restore
+    );
 
     // Display offset should be clamped
     assert!(

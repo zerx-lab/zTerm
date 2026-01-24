@@ -8,8 +8,8 @@ use gpui::{App, Global};
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use parking_lot::RwLock;
 use std::path::PathBuf;
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
+use std::sync::mpsc::{Receiver, Sender, channel};
 use tracing::{error, info, warn};
 
 /// Message sent from file watcher to main thread

@@ -56,8 +56,8 @@ pub mod mouse;
 
 pub use ai_context::{AiCommandContext, AiIntent, AiSessionContext, AiTerminalContext};
 pub use context_menu::{
-    build_context_menu, count_enabled_items, ContextMenuAction, MenuContext, MenuEntry, MenuItem,
+    ContextMenuAction, MenuContext, MenuEntry, MenuItem, build_context_menu, count_enabled_items,
 };
-pub use gutter::{command_state_to_visual, GutterConfig, GutterIcon, GutterMark, GutterVisual};
+pub use gutter::{GutterConfig, GutterIcon, GutterMark, GutterVisual, command_state_to_visual};
 pub use highlight::{HighlightConfig, HighlightRect, HighlightRegion, HighlightType};
 pub use mouse::{HoverState, MouseConfig, MouseHandler};

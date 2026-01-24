@@ -379,13 +379,11 @@ mod tests {
         let region = HighlightRegion::new(5, 10, HighlightType::Hover);
 
         let rect = HighlightRect::from_region(
-            &region,
-            &config,
-            20.0, // line_height
-            0,    // first_visible_line
-            0.0,  // x
+            &region, &config, 20.0,  // line_height
+            0,     // first_visible_line
+            0.0,   // x
             800.0, // width
-            0.0,  // scroll_offset
+            0.0,   // scroll_offset
         );
 
         assert!(rect.is_some());
@@ -400,8 +398,7 @@ mod tests {
         config.enabled = false;
         let region = HighlightRegion::new(5, 10, HighlightType::Hover);
 
-        let rect =
-            HighlightRect::from_region(&region, &config, 20.0, 0, 0.0, 800.0, 0.0);
+        let rect = HighlightRect::from_region(&region, &config, 20.0, 0, 0.0, 800.0, 0.0);
 
         assert!(rect.is_none());
     }
@@ -412,13 +409,8 @@ mod tests {
         let region = HighlightRegion::new(5, 10, HighlightType::Hover);
 
         let rect = HighlightRect::from_region(
-            &region,
-            &config,
-            20.0,
-            20, // first_visible_line is after region
-            0.0,
-            800.0,
-            0.0,
+            &region, &config, 20.0, 20, // first_visible_line is after region
+            0.0, 800.0, 0.0,
         );
 
         assert!(rect.is_none());
@@ -430,13 +422,7 @@ mod tests {
         let region = HighlightRegion::new(0, 5, HighlightType::Selected);
 
         let rect = HighlightRect::from_region(
-            &region,
-            &config,
-            20.0,
-            0,
-            0.0,
-            800.0,
-            10.0, // scroll_offset
+            &region, &config, 20.0, 0, 0.0, 800.0, 10.0, // scroll_offset
         );
 
         assert!(rect.is_some());
