@@ -89,6 +89,12 @@ impl ShellIntegrationHandler {
             "A" => {
                 // Prompt start
                 let zone_id = self.zone_manager.start_zone(CommandState::PromptStart, self.current_line);
+                tracing::info!(
+                    "Shell integration: PromptStart at line {}, zone_id={:?}, total_zones={}",
+                    self.current_line,
+                    zone_id,
+                    self.zone_manager.len()
+                );
                 self.pending_events.push(ShellEvent::PromptStarted {
                     zone_id,
                     line: self.current_line,
@@ -121,7 +127,16 @@ impl ShellIntegrationHandler {
                 // Command finished
                 let exit_code = self.parse_exit_code(params);
                 let zone_id = self.zone_manager.active_zone().map(|z| z.id);
+                let zone_start = self.zone_manager.active_zone().map(|z| z.start_line);
                 self.zone_manager.finish_zone(self.current_line, exit_code);
+                tracing::info!(
+                    "Shell integration: CommandFinished zone_id={:?}, start={:?}, end={}, exit_code={}, total_zones={}",
+                    zone_id,
+                    zone_start,
+                    self.current_line,
+                    exit_code,
+                    self.zone_manager.len()
+                );
                 if let Some(id) = zone_id {
                     self.pending_events.push(ShellEvent::CommandFinished {
                         zone_id: id,

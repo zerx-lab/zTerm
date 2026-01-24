@@ -31,8 +31,9 @@ function Prompt {
 
     # Send command finished if we had a command
     if ($global:__zterm_last_cmd) {
-        __zterm_osc "133;D;$exit_code"
+        # IMPORTANT: Send command text BEFORE finished, so handler can associate it with the zone
         __zterm_osc "633;E;$(__zterm_urlencode $global:__zterm_last_cmd)"
+        __zterm_osc "133;D;$exit_code"
         $global:__zterm_last_cmd = $null
     }
 

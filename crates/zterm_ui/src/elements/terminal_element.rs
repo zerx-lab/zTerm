@@ -568,7 +568,13 @@ impl Element for TerminalElement {
         let display_offset = content.display_offset as i32;
         let history_size = content.history_size as i32;
 
-        for zone_info in &content.zones {
+        tracing::info!(
+            "Zone paint: total_zones={}, selected_zone={:?}",
+            content.zones.len(),
+            self.selected_zone
+        );
+
+        for (idx, zone_info) in content.zones.iter().enumerate() {
             // Find matching zone in layout.zones to get visual lines
             let start_line_abs = zone_info.start_line;
             let end_line_abs = zone_info.end_line;
@@ -577,18 +583,31 @@ impl Element for TerminalElement {
             let start_visual = start_line_abs as i32 - history_size + display_offset;
             let end_visual = end_line_abs.map(|end| end as i32 - history_size + display_offset);
 
-            // Calculate zone bounds
-            let start_y = origin.y + layout.y_offset + layout.line_height * start_visual as f32;
-            let end_y = if let Some(end_line) = end_visual {
-                origin.y + layout.y_offset + layout.line_height * end_line as f32
+            // Calculate end line in visual coordinates
+            let end_visual_line = if let Some(end_line) = end_visual {
+                end_line
             } else {
                 // Active zone: use cursor line + 1
                 let cursor_visual = content.cursor.point.line.0 + display_offset;
-                origin.y + layout.y_offset + layout.line_height * (cursor_visual + 1) as f32
+                cursor_visual + 1
             };
 
-            // Skip if zone has no height or not visible
-            if end_y <= start_y || start_visual >= content.screen_lines as i32 {
+            // Skip zones that are completely outside the visible area
+            // Zone must have at least some overlap with [0, screen_lines)
+            if end_visual_line <= 0 || start_visual >= content.screen_lines as i32 {
+                continue;
+            }
+
+            // Clamp zone to visible area [0, screen_lines)
+            let clamped_start_visual = start_visual.max(0);
+            let clamped_end_visual = end_visual_line.min(content.screen_lines as i32);
+
+            // Calculate zone bounds (clamped to viewport)
+            let start_y = origin.y + layout.y_offset + layout.line_height * clamped_start_visual as f32;
+            let end_y = origin.y + layout.y_offset + layout.line_height * clamped_end_visual as f32;
+
+            // Skip if zone has no visible height after clamping
+            if end_y <= start_y {
                 continue;
             }
 
@@ -596,6 +615,19 @@ impl Element for TerminalElement {
             let is_selected = self.selected_zone
                 .map(|(sel_start, sel_end)| sel_start == start_line_abs && sel_end == end_line_abs)
                 .unwrap_or(false);
+
+            tracing::info!(
+                "Zone #{}: abs=[{}, {:?}], visual=[{}, {}], is_selected={}, start_y={}, end_y={}",
+                idx,
+                start_line_abs,
+                end_line_abs,
+                clamped_start_visual,
+                clamped_end_visual,
+                is_selected,
+                start_y,
+                end_y
+            );
+
 
             // Determine colors based on zone state
             let (gutter_color, bg_color) = if zone_info.end_line.is_none() {

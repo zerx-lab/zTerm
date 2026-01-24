@@ -662,6 +662,12 @@ impl TerminalView {
         let display_offset = content.display_offset as i32;
         let history_size = content.history_size as i32;
 
+        tracing::info!(
+            "Selecting zone: start_line={}, end_line={:?}",
+            start_line,
+            end_line
+        );
+
         // Store selected zone for highlighting
         self.selected_zone = Some((start_line, end_line));
 
@@ -740,15 +746,27 @@ impl TerminalView {
             if zone.start_line <= absolute_line {
                 if let Some(end) = zone.end_line {
                     if absolute_line < end {
+                        tracing::info!(
+                            "Found zone at abs_line {}: zone=[{}, {:?}]",
+                            absolute_line,
+                            zone.start_line,
+                            zone.end_line
+                        );
                         return Some((zone.start_line, zone.end_line));
                     }
                 } else {
                     // Active zone (no end yet)
+                    tracing::info!(
+                        "Found active zone at abs_line {}: zone=[{}, None]",
+                        absolute_line,
+                        zone.start_line
+                    );
                     return Some((zone.start_line, None));
                 }
             }
         }
 
+        tracing::info!("No zone found at abs_line {}", absolute_line);
         None
     }
 

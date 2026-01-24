@@ -6,6 +6,7 @@
 
 use crate::shell_integration::{OscScanner, OscSequence};
 use alacritty_terminal::event::{Event as AlacTermEvent, EventListener, OnResize, WindowSize};
+use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::sync::FairMutex;
 use alacritty_terminal::term::Term;
 use alacritty_terminal::tty::{self, ChildEvent, EventedPty};
@@ -144,28 +145,13 @@ where
                 },
             }
 
-            // === OSC SCANNING: Scan for OSC sequences before VTE parsing ===
+            // === OSC SCANNING: Scan for OSC sequences (step 1: scan only) ===
             let data = &buf[..unprocessed];
             let sequences = self.scanner.scan(data);
             if !sequences.is_empty() {
-                tracing::info!("OSC sequences detected: {:?}", sequences);
+                tracing::debug!("OSC sequences detected: {} sequences", sequences.len());
             }
-            for seq in sequences {
-                // Update current line for certain sequences
-                if matches!(seq, OscSequence::CommandExecuting | OscSequence::PromptStart) {
-                    // Get current cursor line from terminal if possible
-                    if let Some(ref term) = terminal {
-                        self.current_line = term.grid().cursor.point.line.0 as usize;
-                    }
-                }
-
-                // Send OSC event
-                let _ = self.osc_tx.send(OscEvent {
-                    sequence: seq,
-                    line: self.current_line,
-                });
-            }
-            // === END OSC SCANNING ===
+            // === END OSC SCANNING (step 1) ===
 
             // Attempt to lock the terminal.
             let terminal = match &mut terminal {
@@ -177,11 +163,50 @@ where
                 }),
             };
 
-            // Parse the incoming bytes with VTE.
+            // Parse the incoming bytes with VTE (critical section, must hold lock).
             state.parser.advance(&mut **terminal, &buf[..unprocessed]);
+
+            // === OSC SCANNING (step 2: calculate line numbers for OSC events) ===
+            // Process sequences while holding lock, but minimize work done here
+            let osc_events: Vec<OscEvent> = sequences
+                .into_iter()
+                .map(|seq| {
+                    // Update current line for certain sequences
+                    let line = if matches!(
+                        seq,
+                        OscSequence::CommandExecuting | OscSequence::PromptStart
+                    ) {
+                        // Convert screen-relative cursor line to absolute scrollback line
+                        let grid = terminal.grid();
+                        let cursor_line = grid.cursor.point.line.0 as usize;
+                        let history_size = grid.history_size();
+                        let absolute_line = history_size + cursor_line;
+                        tracing::debug!(
+                            "OSC {:?}: cursor={}, history={}, absolute={}",
+                            seq,
+                            cursor_line,
+                            history_size,
+                            absolute_line
+                        );
+                        self.current_line = absolute_line;
+                        absolute_line
+                    } else {
+                        self.current_line
+                    };
+
+                    OscEvent { sequence: seq, line }
+                })
+                .collect();
+            // === END OSC SCANNING (step 2) ===
 
             processed += unprocessed;
             unprocessed = 0;
+
+            // Send OSC events after releasing lock (outside critical section)
+            // Note: terminal lock will be released when we continue or break
+            for event in osc_events {
+                let _ = self.osc_tx.send(event);
+            }
 
             // Assure we're not blocking the terminal too long unnecessarily.
             if processed >= MAX_LOCKED_READ {
