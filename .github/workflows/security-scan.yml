@@ -145,8 +145,10 @@ jobs:
           sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev
 
       - name: 扫描不安全代码
-        run: cargo geiger -p z_term --output-format GitHubMarkdown > geiger-report.md
-        continue-on-error: true
+        run: |
+          # cargo-geiger 在某些依赖上有兼容性警告，使用 || true 忽略退出码
+          # 报告仍会正常生成
+          cargo geiger --manifest-path ${{ github.workspace }}/crates/z_term/Cargo.toml --output-format GitHubMarkdown > geiger-report.md 2>&1 || true
 
       - name: 上传 Geiger 报告
         uses: actions/upload-artifact@v4
