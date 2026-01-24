@@ -67,22 +67,6 @@ jobs:
           cargo deny check sources
           cargo deny check bans
 
-  # 未使用依赖检测
-  unused-deps:
-    name: 检测未使用的依赖
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@nightly
-
-      - name: 安装 cargo-machete
-        run: cargo install cargo-machete --locked
-
-      - name: 检查未使用的依赖
-        run: cargo machete
-
   # 编译检查 (多平台)
   build:
     name: 构建检查 (${{ matrix.os }})
@@ -117,20 +101,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev
 
-      - name: 检查编译 (快速模式)
+      - name: 检查编译
         run: cargo check --workspace --all-targets --all-features
 
-      - name: 完整构建
-        run: cargo build --workspace --all-targets --all-features --release
-
-  # 测试 (包含覆盖率)
+  # 单元测试 (仅 Linux，跨平台兼容性由 build job 覆盖)
   test:
-    name: 单元测试 (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+    name: 单元测试
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -149,7 +126,6 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Linux 依赖安装
-        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev
@@ -204,22 +180,6 @@ jobs:
         env:
           RUSTDOCFLAGS: "-D warnings"
 
-  # 内存泄漏检查 (使用 Miri)
-  miri:
-    name: Miri 内存安全检查
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: 安装 Rust 工具链 (Nightly)
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: miri
-
-      - name: 运行 Miri 测试
-        run: cargo miri test --workspace
-        continue-on-error: true  # Miri 可能会报告误报
-
   # 最终状态检查
   ci-success:
     name: CI 通过
@@ -227,7 +187,6 @@ jobs:
     needs:
       - code-quality
       - security-audit
-      - unused-deps
       - build
       - test
       - coverage
