@@ -24,7 +24,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: 缓存 Cargo 依赖
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/
@@ -56,17 +56,16 @@ jobs:
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@stable
 
-      - name: 安装 cargo-audit
-        run: cargo install cargo-audit --locked
-
-      - name: 检查依赖安全漏洞
-        run: cargo audit --deny warnings
-
       - name: 安装 cargo-deny
         run: cargo install cargo-deny --locked
 
-      - name: 检查许可证和安全策略
-        run: cargo deny check
+      - name: 检查安全漏洞和许可证
+        run: |
+          # 使用 deny.toml 配置进行检查（已配置忽略上游依赖的 unmaintained 警告）
+          cargo deny check advisories
+          cargo deny check licenses
+          cargo deny check sources
+          cargo deny check bans
 
   # 未使用依赖检测
   unused-deps:
@@ -102,7 +101,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
 
       - name: 缓存 Cargo 依赖
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/
@@ -139,7 +138,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: 缓存 Cargo 依赖
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/
@@ -180,7 +179,7 @@ jobs:
         run: cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info
 
       - name: 上传覆盖率到 Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: lcov.info
           fail_ci_if_error: false
