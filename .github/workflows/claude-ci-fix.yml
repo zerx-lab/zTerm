@@ -149,13 +149,14 @@ jobs:
             checks: read
           # 允许 Claude 运行必要的工具来修复 CI
           claude_args: >-
-            --allowedTools "Bash(cargo:*)"
-            --allowedTools "Bash(git:*)"
+            --allowedTools "Bash"
             --allowedTools "Edit"
             --allowedTools "Write"
             --allowedTools "Read"
             --allowedTools "Glob"
             --allowedTools "Grep"
+            --allowedTools "WebFetch"
+            --allowedTools "WebSearch"
           prompt: |
             CI workflow "定期安全扫描" has failed on this PR. Please:
 
