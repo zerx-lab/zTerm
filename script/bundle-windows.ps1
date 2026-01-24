@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Axon Term Windows 打包脚本
+    zTerm Windows 打包脚本
 
 .DESCRIPTION
-    构建并打包 Axon Term 为 Windows 安装程序。
+    构建并打包 zTerm 为 Windows 安装程序。
 
 .PARAMETER Architecture
     目标架构: x86_64 (默认) 或 aarch64
@@ -36,10 +36,10 @@ param(
     [switch]$SkipBuild,
 
     # 包名 (Cargo.toml 中的 package name)
-    [string]$PackageName = "axon_app",
+    [string]$PackageName = "z_term",
 
-    # 输出的可执行文件名 (用于安装程序)
-    [string]$OutputName = "axon_term"
+    # 输出的可执行文件名 (与 Cargo.toml 中 [[bin]] name 一致)
+    [string]$OutputName = "zterm"
 )
 
 # 严格模式
@@ -179,28 +179,15 @@ function Prepare-Files {
         New-Item -ItemType Directory -Path $InstallerDir -Force | Out-Null
     }
 
-    # 检查主程序 (包名可能与可执行文件名不同，例如 axon_app -> axon_app.exe)
-    $exePath = Join-Path $ReleaseDir "$PackageName.exe"
+    # 检查主程序 (二进制名由 Cargo.toml 中的 [[bin]] name 决定)
     $targetExePath = Join-Path $ReleaseDir "$OutputName.exe"
 
-    Write-Step "查找主程序: $exePath"
+    Write-Step "查找主程序: $targetExePath"
 
-    if (Test-Path $exePath) {
-        if ($exePath -ne $targetExePath) {
-            Write-Step "复制主程序为 $OutputName.exe..."
-            Copy-Item $exePath $targetExePath -Force
-        }
-    } elseif (Test-Path $targetExePath) {
+    if (Test-Path $targetExePath) {
         Write-Step "主程序已存在: $targetExePath"
     } else {
-        throw "未找到主程序: $exePath`n请先运行构建: cargo build --release --package $PackageName"
-    }
-
-    # 检查图标文件
-    $iconPath = Join-Path $ResourcesDir "app-icon.ico"
-    if (-not (Test-Path $iconPath)) {
-        Write-Warning "未找到图标文件: $iconPath"
-        Write-Warning "请从 assets/icons/logo.svg 生成 .ico 文件"
+        throw "未找到主程序: $targetExePath`n请先运行构建: cargo build --release --package $PackageName"
     }
 
     Write-Step "文件准备完成"
@@ -214,9 +201,16 @@ function Build-Installer {
         return
     }
 
-    $issFile = Join-Path $ResourcesDir "axon_term.iss"
+    $issFile = Join-Path $ResourcesDir "zterm.iss"
     if (-not (Test-Path $issFile)) {
         throw "未找到 Inno Setup 配置文件: $issFile"
+    }
+
+    # 确保图标文件存在
+    $iconPath = Join-Path $ResourcesDir "app-icon.ico"
+    if (-not (Test-Path $iconPath)) {
+        Write-Step "生成安装程序图标..."
+        Generate-Icon
     }
 
     Write-Step "运行 Inno Setup 编译器..."
@@ -224,16 +218,16 @@ function Build-Installer {
     Write-Host "    Project Root: $ProjectRoot"
 
     # 设置环境变量供 ISS 文件使用
-    $env:AXON_VERSION = $Version
-    $env:AXON_TARGET_DIR = $TargetDir
-    $env:AXON_PROJECT_ROOT = $ProjectRoot
+    $env:ZTERM_VERSION = $Version
+    $env:ZTERM_TARGET_DIR = $TargetDir
+    $env:ZTERM_PROJECT_ROOT = $ProjectRoot
 
     & $InnoSetupPath $issFile
     if ($LASTEXITCODE -ne 0) {
         throw "Inno Setup 编译失败"
     }
 
-    $installerPath = Join-Path $InstallerDir "AxonTerm-$Version-x64-setup.exe"
+    $installerPath = Join-Path $InstallerDir "zTerm-$Version-x64-setup.exe"
     if (Test-Path $installerPath) {
         Write-Step "安装程序已生成: $installerPath"
         $size = (Get-Item $installerPath).Length / 1MB
@@ -241,10 +235,58 @@ function Build-Installer {
     }
 }
 
+function Generate-Icon {
+    # 尝试从编译输出中复制图标，或使用 ImageMagick 生成
+    $svgPath = Join-Path $AssetsDir "icons\logo.svg"
+    $iconPath = Join-Path $ResourcesDir "app-icon.ico"
+
+    # 方法 1: 检查是否有 ImageMagick
+    if (Get-Command magick -ErrorAction SilentlyContinue) {
+        Write-Step "使用 ImageMagick 生成图标..."
+        & magick convert $svgPath -define icon:auto-resize=256,128,64,48,32,16 $iconPath
+        if ($LASTEXITCODE -eq 0 -and (Test-Path $iconPath)) {
+            Write-Host "    图标已生成: $iconPath"
+            return
+        }
+    }
+
+    # 方法 2: 检查是否有 Inkscape + ImageMagick
+    if ((Get-Command inkscape -ErrorAction SilentlyContinue) -and (Get-Command magick -ErrorAction SilentlyContinue)) {
+        Write-Step "使用 Inkscape + ImageMagick 生成图标..."
+        $tempPng = Join-Path $env:TEMP "zterm-logo.png"
+        & inkscape $svgPath --export-filename=$tempPng -w 256 -h 256
+        if ($LASTEXITCODE -eq 0) {
+            & magick convert $tempPng -define icon:auto-resize=256,128,64,48,32,16 $iconPath
+            Remove-Item $tempPng -ErrorAction SilentlyContinue
+            if (Test-Path $iconPath) {
+                Write-Host "    图标已生成: $iconPath"
+                return
+            }
+        }
+    }
+
+    # 方法 3: 检查编译输出目录中是否有生成的图标
+    $buildIconDir = Join-Path $TargetDir "release\build"
+    if (Test-Path $buildIconDir) {
+        $buildIco = Get-ChildItem -Path $buildIconDir -Recurse -Filter "app-icon.ico" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($buildIco) {
+            Write-Step "从构建输出复制图标..."
+            Copy-Item $buildIco.FullName $iconPath -Force
+            Write-Host "    图标已复制: $iconPath"
+            return
+        }
+    }
+
+    Write-Warning "无法生成图标文件，请手动创建 $iconPath"
+    Write-Warning "可以使用以下方法之一:"
+    Write-Warning "  1. 安装 ImageMagick: winget install ImageMagick.ImageMagick"
+    Write-Warning "  2. 使用在线工具转换 SVG 到 ICO"
+}
+
 function Install-Application {
     Write-Header "安装应用程序"
 
-    $installerPath = Join-Path $InstallerDir "AxonTerm-$Version-x64-setup.exe"
+    $installerPath = Join-Path $InstallerDir "zTerm-$Version-x64-setup.exe"
     if (-not (Test-Path $installerPath)) {
         Write-Warning "未找到安装程序，跳过安装"
         return
@@ -264,12 +306,12 @@ function Show-Summary {
     Write-Host ""
     Write-Host "输出文件:"
 
-    $installerPath = Join-Path $InstallerDir "AxonTerm-$Version-x64-setup.exe"
+    $installerPath = Join-Path $InstallerDir "zTerm-$Version-x64-setup.exe"
     if (Test-Path $installerPath) {
         Write-Host "  - $installerPath"
     }
 
-    $exePath = Join-Path $ReleaseDir "axon_term.exe"
+    $exePath = Join-Path $ReleaseDir "zterm.exe"
     if (Test-Path $exePath) {
         Write-Host "  - $exePath"
     }
@@ -279,7 +321,7 @@ function Show-Summary {
 try {
     Write-Host ""
     Write-Host "╔════════════════════════════════════════╗" -ForegroundColor Magenta
-    Write-Host "║      Axon Term Windows 打包工具        ║" -ForegroundColor Magenta
+    Write-Host "║        zTerm Windows 打包工具          ║" -ForegroundColor Magenta
     Write-Host "║              v$Version                    ║" -ForegroundColor Magenta
     Write-Host "╚════════════════════════════════════════╝" -ForegroundColor Magenta
 

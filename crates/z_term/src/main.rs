@@ -2,6 +2,9 @@
 //!
 //! A modern cross-platform terminal emulator built with Rust and GPUI.
 
+// Hide console window on Windows in release builds
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use anyhow::Result;
 use gpui::*;
 use tracing::info;
