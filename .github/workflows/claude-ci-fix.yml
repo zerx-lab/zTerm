@@ -156,11 +156,79 @@ jobs:
               body: `## 🔧 Claude CI Auto-Fix Attempt ${attempt}/${maxAttempts}\n\nAnalyzing CI failures and attempting automatic fix...\n\n📋 **Failed CI Run**: [#${runId}](${runUrl})\n\n⏳ This may take a few minutes.`
             });
 
+      - name: Collect CI failure details
+        id: failure-details
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runId = '${{ needs.check-if-fix-needed.outputs.run_id }}';
+
+            // 获取所有 jobs
+            const { data: jobs } = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: parseInt(runId),
+            });
+
+            // 筛选失败的 jobs
+            const failedJobs = jobs.jobs.filter(job => job.conclusion === 'failure');
+
+            let errorSummary = '## CI Failure Summary\n\n';
+            errorSummary += `Total failed jobs: ${failedJobs.length}\n\n`;
+
+            for (const job of failedJobs) {
+              errorSummary += `### ❌ ${job.name}\n`;
+              errorSummary += `- Job ID: ${job.id}\n`;
+              errorSummary += `- URL: ${job.html_url}\n`;
+
+              // 获取失败步骤
+              const failedSteps = job.steps?.filter(step => step.conclusion === 'failure') || [];
+              if (failedSteps.length > 0) {
+                errorSummary += `- Failed steps:\n`;
+                for (const step of failedSteps) {
+                  errorSummary += `  - ${step.name}\n`;
+                }
+              }
+
+              // 获取 annotations (包含具体错误信息)
+              try {
+                const { data: annotations } = await github.rest.checks.listAnnotations({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  check_run_id: job.id,
+                });
+
+                if (annotations.length > 0) {
+                  errorSummary += `- Annotations:\n`;
+                  for (const ann of annotations.slice(0, 20)) { // 限制最多 20 个
+                    errorSummary += `  - [${ann.annotation_level}] ${ann.path}:${ann.start_line}: ${ann.message}\n`;
+                  }
+                  if (annotations.length > 20) {
+                    errorSummary += `  - ... and ${annotations.length - 20} more annotations\n`;
+                  }
+                }
+              } catch (e) {
+                console.log(`Could not get annotations for job ${job.id}: ${e.message}`);
+              }
+
+              errorSummary += '\n';
+            }
+
+            // 保存到文件（避免环境变量长度限制）
+            const fs = require('fs');
+            fs.writeFileSync('ci-failure-summary.txt', errorSummary);
+
+            core.setOutput('has_failures', failedJobs.length > 0);
+            core.setOutput('failed_job_count', failedJobs.length);
+            console.log(errorSummary);
+
       - name: Run Claude Code Fix
         id: claude-fix
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # 允许 claude bot 触发的工作流运行（CI 可能由 bot 推送触发）
+          allowed_bots: 'claude,github-actions'
           additional_permissions: |
             actions: read
             checks: read
@@ -180,35 +248,53 @@ jobs:
             - **Run ID**: ${{ needs.check-if-fix-needed.outputs.run_id }}
             - **Run URL**: ${{ needs.check-if-fix-needed.outputs.run_url }}
             - **Branch**: ${{ needs.check-if-fix-needed.outputs.branch }}
+            - **Failed Jobs**: ${{ steps.failure-details.outputs.failed_job_count }}
 
-            Please fix the CI failure:
+            ## Step 1: Read the pre-collected error summary
 
-            1. First, get an overview of the CI run:
-               `gh run view ${{ needs.check-if-fix-needed.outputs.run_id }}`
+            A summary of CI failures has been collected. Read it first:
+            ```
+            cat ci-failure-summary.txt
+            ```
 
-            2. Get the failed job logs:
-               `gh run view ${{ needs.check-if-fix-needed.outputs.run_id }} --log-failed`
+            This file contains:
+            - All failed job names and IDs
+            - Failed step names within each job
+            - Annotations with specific error locations (file:line) and messages
 
-            3. If you need full logs for all jobs:
-               `gh run view ${{ needs.check-if-fix-needed.outputs.run_id }} --log`
+            ## Step 2: Get detailed logs if needed
 
-            4. Identify the root cause and make necessary code changes
+            If the summary doesn't have enough detail, get the full logs:
 
-            5. Commit and push the fix
+            - Overview of the CI run:
+              `gh run view ${{ needs.check-if-fix-needed.outputs.run_id }}`
 
-            Common issues to look for:
-            - Code formatting: run `cargo fmt --all`
-            - Clippy warnings: run `cargo clippy --all-targets --all-features`
-            - Test failures: check the test output and fix the code
-            - Build errors: check compilation errors
-            - Security/license issues: check deny.toml configuration
+            - Failed job logs (may be truncated for large outputs):
+              `gh run view ${{ needs.check-if-fix-needed.outputs.run_id }} --log-failed`
 
-            Important guidelines:
+            - For a specific job's full log:
+              `gh api repos/${{ github.repository }}/actions/jobs/{job_id}/logs`
+
+            ## Step 3: Fix the issues
+
+            Common issues and fixes:
+            - **Code formatting**: run `cargo fmt --all`
+            - **Clippy warnings**: run `cargo clippy --all-targets --all-features` to see warnings, then fix them
+            - **Test failures**: check test output and fix the code
+            - **Build errors**: check compilation errors
+            - **Security/license issues**: check deny.toml configuration
+
+            ## Step 4: Verify and commit
+
+            1. Run the relevant check locally to verify the fix
+            2. Commit and push the fix
+
+            ## Important guidelines
+
             - Focus only on fixing the CI failure, don't make unrelated changes
             - If it's a configuration issue (like deny.toml), fix the config
             - If it's a code issue, make minimal changes to fix it
-            - Always run the relevant check locally before pushing to verify the fix
-            - If the issue cannot be fixed automatically (e.g., requires human decision), explain why
+            - If the issue cannot be fixed automatically (e.g., requires human decision), explain why in a comment
 
       - name: Post result comment
         if: always()
