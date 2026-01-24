@@ -21,5 +21,6 @@ dirs.workspace = true
 notify.workspace = true
 gpui.workspace = true
 chrono.workspace = true
+tracing-appender = "0.2.4"
 
 [dev-dependencies]

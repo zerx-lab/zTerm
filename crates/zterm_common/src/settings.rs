@@ -250,6 +250,7 @@ impl AppSettings {
             config: Arc::new(RwLock::new(config)),
             watcher: None,
             message_rx: None,
+            change_counter: 0,
         }
     }
 
