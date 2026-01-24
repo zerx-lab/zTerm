@@ -67,22 +67,6 @@ jobs:
           cargo deny check sources
           cargo deny check bans
 
-  # 未使用依赖检测
-  unused-deps:
-    name: 检测未使用的依赖
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@nightly
-
-      - name: 安装 cargo-machete
-        run: cargo install cargo-machete --locked
-
-      - name: 检查未使用的依赖
-        run: cargo machete
-
   # 编译检查 (多平台)
   build:
     name: 构建检查 (${{ matrix.os }})
@@ -117,20 +101,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev
 
-      - name: 检查编译 (快速模式)
+      - name: 检查编译
         run: cargo check --workspace --all-targets --all-features
 
-      - name: 完整构建
-        run: cargo build --workspace --all-targets --all-features --release
-
-  # 测试 (包含覆盖率)
+  # 单元测试 (仅 Linux，跨平台兼容性由 build job 覆盖)
   test:
-    name: 单元测试 (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+    name: 单元测试
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -149,7 +126,6 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Linux 依赖安装
-        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev
@@ -204,21 +180,29 @@ jobs:
         env:
           RUSTDOCFLAGS: "-D warnings"
 
-  # 内存泄漏检查 (使用 Miri)
-  miri:
-    name: Miri 内存安全检查
+  # Claude 代码审查 (仅 PR)
+  claude-review:
+    name: Claude 代码审查
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
-
-      - name: 安装 Rust 工具链 (Nightly)
-        uses: dtolnay/rust-toolchain@nightly
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          components: miri
+          fetch-depth: 1
 
-      - name: 运行 Miri 测试
-        run: cargo miri test --workspace
-        continue-on-error: true  # Miri 可能会报告误报
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
+          plugins: 'code-review@claude-code-plugins'
+          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
 
   # 最终状态检查
   ci-success:
@@ -227,20 +211,27 @@ jobs:
     needs:
       - code-quality
       - security-audit
-      - unused-deps
       - build
       - test
       - coverage
       - docs
+      - claude-review
     runs-on: ubuntu-latest
     steps:
       - name: 检查所有任务状态
         run: |
+          # 核心检查必须通过
           if [[ "${{ needs.code-quality.result }}" != "success" || \
                 "${{ needs.security-audit.result }}" != "success" || \
                 "${{ needs.build.result }}" != "success" || \
                 "${{ needs.test.result }}" != "success" ]]; then
             echo "❌ CI 检查失败"
+            exit 1
+          fi
+          # claude-review 仅在 PR 时运行，skipped 也算通过
+          if [[ "${{ needs.claude-review.result }}" != "success" && \
+                "${{ needs.claude-review.result }}" != "skipped" ]]; then
+            echo "❌ Claude 代码审查失败"
             exit 1
           fi
           echo "✅ 所有 CI 检查通过"

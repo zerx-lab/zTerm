@@ -1,9 +1,9 @@
 name: Claude CI Auto-Fix
 
 on:
-  # 当 CI workflow 完成时触发
+  # 当 CI workflow 完成时触发（CI 已包含代码审查）
   workflow_run:
-    workflows: ["CI", "定期安全扫描"]  # 监听 CI 和安全扫描 workflow
+    workflows: ["CI"]
     types: [completed]
 
   # 也可以通过 PR 评论手动触发
@@ -117,12 +117,17 @@ jobs:
       checks: read
 
     steps:
-      - name: Checkout repository
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.check-if-fix-needed.outputs.branch }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Post start comment
         uses: actions/github-script@v7
@@ -158,20 +163,27 @@ jobs:
             --allowedTools "WebFetch"
             --allowedTools "WebSearch"
           prompt: |
-            CI workflow "定期安全扫描" has failed on this PR. Please:
+            CI workflow has failed on this PR. Please:
 
-            1. Analyze the CI failure logs using `gh run view` to understand what went wrong
-            2. Identify the root cause of the failure
-            3. Make the necessary code changes to fix the issue
-            4. Commit and push the fix
+            1. Use `gh run list --branch ${{ needs.check-if-fix-needed.outputs.branch }} --limit 5` to see recent runs
+            2. Use `gh run view <run-id> --log-failed` to analyze the failure logs
+            3. Identify the root cause of the failure
+            4. Make the necessary code changes to fix the issue
+            5. Commit and push the fix
+
+            Common issues to look for:
+            - Code formatting: run `cargo fmt --all`
+            - Clippy warnings: run `cargo clippy --all-targets --all-features`
+            - Test failures: check the test output and fix the code
+            - Build errors: check compilation errors
+            - Security/license issues: check deny.toml configuration
 
             Important guidelines:
             - Focus only on fixing the CI failure, don't make unrelated changes
             - If it's a configuration issue (like deny.toml), fix the config
             - If it's a code issue, make minimal changes to fix it
-            - If the issue cannot be fixed automatically (e.g., requires human decision), explain why in a comment
-
-            After making changes, verify locally if possible before pushing.
+            - Always run the relevant check locally before pushing to verify the fix
+            - If the issue cannot be fixed automatically (e.g., requires human decision), explain why
 
       - name: Post result comment
         if: always()
