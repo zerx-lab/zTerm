@@ -54,6 +54,9 @@ mod zone;
 pub use event::ShellEvent;
 pub use extractor::{ContextSummary, OutputSummary, TextBuffer, TextExtractor};
 pub use handler::ShellIntegrationHandler;
-pub use inject::{get_integration_script, supports_integration, POWERSHELL_INTEGRATION};
+pub use inject::{
+    get_integration_script, get_integration_script_path, get_shell_args_with_integration,
+    supports_integration, POWERSHELL_INTEGRATION,
+};
 pub use scanner::{OscScanner, OscSequence};
 pub use zone::{CommandState, CommandZone, ZoneId, ZoneManager};

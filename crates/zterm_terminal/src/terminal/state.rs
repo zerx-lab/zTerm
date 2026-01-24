@@ -270,7 +270,24 @@ impl Terminal {
         // Setup PTY options - use our detect_shell function for proper defaults
         let shell_program = shell.clone().unwrap_or_else(crate::platform::detect_shell);
 
-        let alac_shell = tty::Shell::new(shell_program.clone(), vec![]);
+        // Prepare shell arguments with integration script if supported (VS Code style)
+        let shell_args =
+            if let Some(args) = crate::shell_integration::get_shell_args_with_integration(&shell_program) {
+                info!("Shell integration enabled for: {}", shell_program);
+                args
+            } else {
+                // Fallback to default args for unsupported shells
+                let shell_name = std::path::Path::new(&shell_program)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or(&shell_program);
+                match shell_name.to_lowercase().as_str() {
+                    "pwsh" | "powershell" => vec!["-NoLogo".to_string()],
+                    _ => vec![],
+                }
+            };
+
+        let alac_shell = tty::Shell::new(shell_program.clone(), shell_args);
         let mut env: HashMap<String, String> = std::env::vars().collect();
         env.insert("TERM".to_string(), "xterm-256color".to_string());
         env.insert("COLORTERM".to_string(), "truecolor".to_string());
@@ -320,23 +337,6 @@ impl Terminal {
         let _io_thread = event_loop.spawn(); // Spawns background I/O thread with OSC scanning
 
         info!("Terminal created with shell integration enabled (PTY scanning active)");
-
-        // Auto-inject shell integration script for supported shells
-        if let Some(script) = crate::shell_integration::get_integration_script(&shell_program) {
-            info!("Auto-injecting shell integration for: {}", shell_program);
-            // Send script to PTY
-            if let Err(e) = pty_tx.0.send(PtyMsg::Input(std::borrow::Cow::Borrowed(script.as_bytes()))) {
-                error!("Failed to inject shell integration script: {}", e);
-            } else {
-                // Send Enter to execute the script
-                if let Err(e) = pty_tx.0.send(PtyMsg::Input(std::borrow::Cow::Borrowed(b"\r"))) {
-                    error!("Failed to send Enter after injecting script: {}", e);
-                }
-                info!("Shell integration script injected successfully");
-            }
-        } else {
-            info!("No auto-injection available for shell: {}", shell_program);
-        }
 
         // Create event processing task (batches events like Zed does)
         let event_loop_task = Self::spawn_event_loop(events_rx, osc_rx, cx);
