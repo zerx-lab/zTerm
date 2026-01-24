@@ -10,7 +10,7 @@
 //! Run with: cargo bench --package zterm_ui
 //! View reports in: target/criterion/report/index.html
 
-use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
 use zterm_ui::{
     GridPosition, ImeState, ScrollbarState, Selection, SharedBounds, TabInfo, TerminalTabBar,
@@ -211,57 +211,57 @@ fn bench_tab_info(c: &mut Criterion) {
         let mut i = 0usize;
         b.iter(|| {
             i = i.wrapping_add(1);
-            black_box(TabInfo {
-                id: i,
-                title: format!("Terminal {}", i),
-                active: i == 0,
-                shell_name: "bash".to_string(),
-                working_directory: format!("/home/user/project{}", i),
-            });
+            black_box(TabInfo::new(
+                i,
+                format!("Terminal {}", i),
+                i == 0,
+                "bash".to_string(),
+                format!("/home/user/project{}", i),
+            ));
         });
     });
 
     group.bench_function("display_directory", |b| {
-        let tab = TabInfo {
-            id: 0,
-            title: "Terminal".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "/home/user/projects/deep/nested/path/project".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            "Terminal".to_string(),
+            true,
+            "bash".to_string(),
+            "/home/user/projects/deep/nested/path/project".to_string(),
+        );
         b.iter(|| black_box(tab.display_directory()));
     });
 
     group.bench_function("display_directory_root", |b| {
-        let tab = TabInfo {
-            id: 0,
-            title: "Terminal".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "/".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            "Terminal".to_string(),
+            true,
+            "bash".to_string(),
+            "/".to_string(),
+        );
         b.iter(|| black_box(tab.display_directory()));
     });
 
     group.bench_function("display_directory_unicode", |b| {
-        let tab = TabInfo {
-            id: 0,
-            title: "Terminal".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "/home/用户/文档/项目".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            "Terminal".to_string(),
+            true,
+            "bash".to_string(),
+            "/home/用户/文档/项目".to_string(),
+        );
         b.iter(|| black_box(tab.display_directory()));
     });
 
     group.bench_function("clone", |b| {
-        let tab = TabInfo {
-            id: 42,
-            title: "Test Terminal".to_string(),
-            active: true,
-            shell_name: "zsh".to_string(),
-            working_directory: "/home/user/my-project".to_string(),
-        };
+        let tab = TabInfo::new(
+            42,
+            "Test Terminal".to_string(),
+            true,
+            "zsh".to_string(),
+            "/home/user/my-project".to_string(),
+        );
         b.iter(|| black_box(tab.clone()));
     });
 
@@ -289,13 +289,13 @@ fn bench_terminal_tab_bar(c: &mut Criterion) {
             &num_tabs,
             |b, &num_tabs| {
                 let tabs: Vec<TabInfo> = (0..num_tabs)
-                    .map(|i| TabInfo {
-                        id: i,
-                        title: format!("Terminal {}", i),
-                        active: i == 0,
-                        shell_name: "bash".to_string(),
-                        working_directory: format!("/home/user/project{}", i),
-                    })
+                    .map(|i| TabInfo::new(
+                        i,
+                        format!("Terminal {}", i),
+                        i == 0,
+                        "bash".to_string(),
+                        format!("/home/user/project{}", i),
+                    ))
                     .collect();
                 b.iter(|| black_box(TerminalTabBar::new().tabs(tabs.clone())));
             },
@@ -519,13 +519,13 @@ fn bench_integration(c: &mut Criterion) {
         b.iter(|| {
             // Create tabs
             let tabs: Vec<TabInfo> = (0..10)
-                .map(|i| TabInfo {
-                    id: i,
-                    title: format!("Terminal {}", i),
-                    active: i == 0,
-                    shell_name: "bash".to_string(),
-                    working_directory: format!("/home/user/project{}", i),
-                })
+                .map(|i| TabInfo::new(
+                    i,
+                    format!("Terminal {}", i),
+                    i == 0,
+                    "bash".to_string(),
+                    format!("/home/user/project{}", i),
+                ))
                 .collect();
 
             // Create tab bar

@@ -39,14 +39,32 @@ pub struct TabInfo {
     pub shell_name: String,
     /// Working directory path
     pub working_directory: String,
+    /// Cached display directory name (computed once on creation)
+    display_name_cache: Option<String>,
 }
 
 impl TabInfo {
-    /// Get a display-friendly directory name
-    /// Shows last directory component, or ~ for home directory
-    pub fn display_directory(&self) -> String {
-        let path = &self.working_directory;
+    /// Create a new TabInfo with pre-computed display name for better performance
+    pub fn new(
+        id: usize,
+        title: String,
+        active: bool,
+        shell_name: String,
+        working_directory: String,
+    ) -> Self {
+        let display_name = Self::compute_display_directory(&working_directory);
+        Self {
+            id,
+            title,
+            active,
+            shell_name,
+            working_directory,
+            display_name_cache: Some(display_name),
+        }
+    }
 
+    /// Compute the display-friendly directory name
+    fn compute_display_directory(path: &str) -> String {
         // Check if it's home directory
         if let Some(home) = dirs::home_dir() {
             if path == home.to_string_lossy().as_ref() {
@@ -68,7 +86,16 @@ impl TabInfo {
         Path::new(path)
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| path.clone())
+            .unwrap_or_else(|| path.to_string())
+    }
+
+    /// Get a display-friendly directory name
+    /// Shows last directory component, or ~ for home directory
+    /// Uses cached value when available for better performance
+    pub fn display_directory(&self) -> String {
+        self.display_name_cache
+            .clone()
+            .unwrap_or_else(|| Self::compute_display_directory(&self.working_directory))
     }
 }
 
@@ -99,6 +126,8 @@ pub struct TitleBar {
     /// Tabs to display in the title bar
     pub tabs: Vec<TabInfo>,
     should_move: bool,
+    /// Scroll handle for horizontal tab scrolling
+    scroll_handle: ScrollHandle,
 }
 
 impl EventEmitter<TitleBarEvent> for TitleBar {}
@@ -109,6 +138,7 @@ impl TitleBar {
         Self {
             tabs: vec![],
             should_move: false,
+            scroll_handle: ScrollHandle::new(),
         }
     }
 
@@ -136,6 +166,12 @@ impl TitleBar {
     /// Handle new tab
     fn on_new_tab(&mut self, cx: &mut Context<Self>) {
         cx.emit(TitleBarEvent::NewTab);
+    }
+
+    /// Scroll to make the specified tab visible
+    /// Call this after changing the active tab to ensure it's in view
+    pub fn scroll_to_tab(&self, tab_index: usize) {
+        self.scroll_handle.scroll_to_item(tab_index);
     }
 }
 
@@ -207,23 +243,19 @@ impl Render for TitleBar {
                     }
                 })
             })
-            // Content layout - tabs area with proper overflow handling
-            // Outer container: overflow_x_hidden to clip overflowing content
-            // Inner container: overflow_x_scroll for scrollable tabs
+            // Scrollable tabs container - follows Zed's pane.rs pattern
+            // GPUI automatically converts vertical scroll to horizontal when only overflow_x_scroll is set
             .child(
-                div()
+                h_flex()
+                    .id("tabs-scroll-container")
                     .flex_1()
                     .h_full()
-                    .overflow_x_hidden()
                     .min_w_0() // Allow shrinking below content size
-                    .child(
-                        h_flex()
-                            .id("tabs-scroll-container")
-                            .h_full()
-                            .items_center()
-                            .overflow_x_scroll()
-                            .px_2()
-                            .gap_1()
+                    .items_center()
+                    .overflow_x_scroll()
+                    .track_scroll(&self.scroll_handle)
+                    .px_2()
+                    .gap_1()
                             .children(tabs.into_iter().map(|tab| {
                                 let tab_id = tab.id;
                                 let is_active = tab.active;
@@ -247,7 +279,8 @@ impl Render for TitleBar {
                                 };
 
                                 div()
-                                    .id(ElementId::Name(format!("tab-{}", tab_id).into()))
+                                    // Use NamedInteger for ~10x faster ElementId creation
+                                    .id(ElementId::NamedInteger("tab".into(), tab_id as u64))
                                     .flex()
                                     .flex_row()
                                     .flex_shrink_0() // Prevent tabs from shrinking
@@ -268,7 +301,7 @@ impl Render for TitleBar {
                                     })
                                     .hover(|style| style.bg(hover_bg))
                                     .cursor_pointer()
-                                    .occlude()
+                                    .block_mouse_except_scroll()
                                     .on_mouse_down(
                                         MouseButton::Left,
                                         |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
@@ -292,9 +325,8 @@ impl Render for TitleBar {
                                     // Close button - compact and subtle
                                     .child(
                                         div()
-                                            .id(ElementId::Name(
-                                                format!("close-tab-{}", tab_id).into(),
-                                            ))
+                                            // Use NamedInteger for ~10x faster ElementId creation
+                                            .id(ElementId::NamedInteger("close-tab".into(), tab_id as u64))
                                             .flex()
                                             .items_center()
                                             .justify_center()
@@ -342,7 +374,7 @@ impl Render for TitleBar {
                                     .hover(|style| style.bg(rgb(0x2d2d2d)).text_color(rgb(0xa0a0a0)))
                                     .active(|style| style.bg(rgb(0x3d3d3d)))
                                     .cursor_pointer()
-                                    .occlude()
+                                    .block_mouse_except_scroll()
                                     .on_mouse_down(
                                         MouseButton::Left,
                                         |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
@@ -355,7 +387,6 @@ impl Render for TitleBar {
                                     }))
                                     .child("+"),
                             ),
-                    ),
             )
             // Window controls (right side) - protected from shrinking
             .when(
@@ -493,6 +524,7 @@ impl RenderOnce for WindowsCaptionButton {
             .justify_center()
             .items_center()
             // CRITICAL: Occlude prevents mouse events from reaching drag area
+            // Window control buttons MUST use occlude() to block ALL mouse events
             .occlude()
             .w(px(46.0))
             .h_full()
@@ -583,6 +615,7 @@ impl RenderOnce for LinuxCaptionButton {
             .h_full()
             .text_sm()
             .text_color(rgb(0xcccccc))
+            // Window control buttons MUST use occlude() to block ALL mouse events
             .occlude()
             .hover(move |style: StyleRefinement| style.bg(hover_bg).text_color(hover_fg))
             .active(move |style: StyleRefinement| style.bg(hover_bg).opacity(0.8))

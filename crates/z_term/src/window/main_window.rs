@@ -41,6 +41,11 @@ impl MainWindow {
                 self.workspace.update(cx, |ws, cx| {
                     ws.new_tab(cx);
                 });
+                // Scroll to show the new tab (last one)
+                let active_index = self.workspace.read(cx).active_tab_index();
+                self.title_bar.update(cx, |title_bar, _| {
+                    title_bar.scroll_to_tab(active_index);
+                });
                 // Focus the new terminal
                 self.focus_active_terminal_deferred(cx);
             }
@@ -48,6 +53,10 @@ impl MainWindow {
                 let tab_index = *tab_index;
                 self.workspace.update(cx, |ws, cx| {
                     ws.set_active_tab(tab_index, cx);
+                });
+                // Scroll to show the selected tab
+                self.title_bar.update(cx, |title_bar, _| {
+                    title_bar.scroll_to_tab(tab_index);
                 });
                 // Focus the selected terminal
                 self.focus_active_terminal_deferred(cx);
@@ -105,6 +114,11 @@ impl MainWindow {
         self.workspace.update(cx, |ws, cx| {
             ws.new_tab(cx);
         });
+        // Scroll to show the new tab (last one)
+        let active_index = self.workspace.read(cx).active_tab_index();
+        self.title_bar.update(cx, |title_bar, _| {
+            title_bar.scroll_to_tab(active_index);
+        });
         // Focus the new terminal
         self.focus_active_terminal(window, cx);
     }
@@ -129,6 +143,11 @@ impl MainWindow {
         self.workspace.update(cx, |ws, cx| {
             ws.next_tab(cx);
         });
+        // Scroll to show the active tab
+        let active_index = self.workspace.read(cx).active_tab_index();
+        self.title_bar.update(cx, |title_bar, _| {
+            title_bar.scroll_to_tab(active_index);
+        });
         // Focus the new active terminal
         self.focus_active_terminal(window, cx);
     }
@@ -136,6 +155,11 @@ impl MainWindow {
     fn handle_prev_tab(&mut self, _: &PrevTab, window: &mut Window, cx: &mut Context<Self>) {
         self.workspace.update(cx, |ws, cx| {
             ws.prev_tab(cx);
+        });
+        // Scroll to show the active tab
+        let active_index = self.workspace.read(cx).active_tab_index();
+        self.title_bar.update(cx, |title_bar, _| {
+            title_bar.scroll_to_tab(active_index);
         });
         // Focus the new active terminal
         self.focus_active_terminal(window, cx);
@@ -156,13 +180,14 @@ impl Render for MainWindow {
                     let shell_name = terminal.shell_name();
                     let working_directory =
                         terminal.working_directory().to_string_lossy().to_string();
-                    TabInfo {
-                        id: i,
-                        title: tab.title.clone(),
-                        active: i == workspace.active_tab_index(),
+                    // Use TabInfo::new for pre-computed display_directory (better perf)
+                    TabInfo::new(
+                        i,
+                        tab.title.clone(),
+                        i == workspace.active_tab_index(),
                         shell_name,
                         working_directory,
-                    }
+                    )
                 })
                 .collect();
             let active_tab_index = workspace.active_tab_index();

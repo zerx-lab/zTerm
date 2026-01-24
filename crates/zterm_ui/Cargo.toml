@@ -36,3 +36,7 @@ criterion = { version = "0.5", features = ["html_reports"] }
 [[bench]]
 name = "ui_benchmarks"
 harness = false
+
+[[bench]]
+name = "title_bar_bench"
+harness = false
