@@ -105,6 +105,8 @@ pub struct TerminalElement {
     selection: Option<Selection>,
     /// Shared bounds for mouse position calculation
     shared_bounds: Option<SharedBounds>,
+    /// Currently selected zone (for highlighting)
+    selected_zone: Option<(usize, Option<usize>)>,
 }
 
 impl TerminalElement {
@@ -116,6 +118,7 @@ impl TerminalElement {
         theme: TerminalTheme,
         selection: Option<Selection>,
         shared_bounds: SharedBounds,
+        selected_zone: Option<(usize, Option<usize>)>,
     ) -> Self {
         Self {
             terminal,
@@ -124,6 +127,7 @@ impl TerminalElement {
             theme,
             selection,
             shared_bounds: Some(shared_bounds),
+            selected_zone,
         }
     }
 
@@ -559,43 +563,67 @@ impl Element for TerminalElement {
         let gutter_margin_left = px(2.0);
         let gutter_total_width = gutter_margin_left + gutter_width + px(4.0);
 
-        for zone in &layout.zones {
-            // Calculate zone bounds (end_line should always be Some now)
-            let start_y = origin.y + layout.y_offset + layout.line_height * zone.start_line as f32;
-            let end_y = zone.end_line
-                .map(|end_line| origin.y + layout.y_offset + layout.line_height * end_line as f32)
-                .unwrap_or(start_y + layout.line_height); // Fallback: single line
+        // Get selected zone info from terminal content
+        let content = self.terminal.read(cx).content();
+        let display_offset = content.display_offset as i32;
+        let history_size = content.history_size as i32;
 
-            // Skip if zone has no height
-            if end_y <= start_y {
+        for zone_info in &content.zones {
+            // Find matching zone in layout.zones to get visual lines
+            let start_line_abs = zone_info.start_line;
+            let end_line_abs = zone_info.end_line;
+
+            // Convert to visual lines
+            let start_visual = start_line_abs as i32 - history_size + display_offset;
+            let end_visual = end_line_abs.map(|end| end as i32 - history_size + display_offset);
+
+            // Calculate zone bounds
+            let start_y = origin.y + layout.y_offset + layout.line_height * start_visual as f32;
+            let end_y = if let Some(end_line) = end_visual {
+                origin.y + layout.y_offset + layout.line_height * end_line as f32
+            } else {
+                // Active zone: use cursor line + 1
+                let cursor_visual = content.cursor.point.line.0 + display_offset;
+                origin.y + layout.y_offset + layout.line_height * (cursor_visual + 1) as f32
+            };
+
+            // Skip if zone has no height or not visible
+            if end_y <= start_y || start_visual >= content.screen_lines as i32 {
                 continue;
             }
 
+            // Determine if this zone is selected
+            let is_selected = self.selected_zone
+                .map(|(sel_start, sel_end)| sel_start == start_line_abs && sel_end == end_line_abs)
+                .unwrap_or(false);
+
             // Determine colors based on zone state
-            let (gutter_color, bg_color) = if zone.is_active {
-                // Active zone: blue (more visible for active command)
-                (rgba(0x0078d4_ff), rgba(0x0078d418))
-            } else if let Some(exit_code) = zone.exit_code {
+            let (gutter_color, bg_color) = if zone_info.end_line.is_none() {
+                // Active zone: blue
+                (rgba(0x0078d4_ff), rgba(0x0078d420))
+            } else if let Some(exit_code) = zone_info.exit_code {
                 if exit_code == 0 {
                     // Success: green
-                    (rgba(0x16825d_ff), rgba(0x16825d0c))
+                    (rgba(0x16825d_ff), rgba(0x16825d18))
                 } else {
                     // Failure: red
-                    (rgba(0xf14c4c_ff), rgba(0xf14c4c14))
+                    (rgba(0xf14c4c_ff), rgba(0xf14c4c20))
                 }
             } else {
                 // Running: yellow
-                (rgba(0xcca700_ff), rgba(0xcca70012))
+                (rgba(0xcca700_ff), rgba(0xcca70018))
             };
 
-            // Draw block background (subtle highlight for each command block)
-            let bg_bounds = Bounds::new(
-                point(origin.x + gutter_total_width, start_y),
-                size(bounds.size.width - gutter_total_width, end_y - start_y),
-            );
-            window.paint_quad(fill(bg_bounds, bg_color));
+            // Only draw background if this zone is selected
+            if is_selected {
+                let bg_bounds = Bounds::new(
+                    point(origin.x + gutter_total_width, start_y),
+                    size(bounds.size.width - gutter_total_width, end_y - start_y),
+                );
+                window.paint_quad(fill(bg_bounds, bg_color));
+            }
 
-            // Draw gutter decoration (vertical line)
+            // Always draw gutter decoration (small icon)
             let gutter_x = origin.x + gutter_margin_left;
             let gutter_bounds = Bounds::new(
                 point(gutter_x, start_y),

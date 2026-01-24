@@ -120,6 +120,9 @@ pub struct TerminalView {
 
     /// Context menu Entity 和订阅
     context_menu: Option<(Entity<ContextMenuView>, Point<Pixels>, Subscription)>,
+
+    /// Currently selected zone (for highlighting)
+    selected_zone: Option<(usize, Option<usize>)>, // (start_line, end_line)
 }
 
 impl TerminalView {
@@ -158,6 +161,7 @@ impl TerminalView {
             input_flush_task: None,
             context_menu_state: ContextMenuState::new(),
             context_menu: None,
+            selected_zone: None,
         }
     }
 
@@ -658,6 +662,9 @@ impl TerminalView {
         let display_offset = content.display_offset as i32;
         let history_size = content.history_size as i32;
 
+        // Store selected zone for highlighting
+        self.selected_zone = Some((start_line, end_line));
+
         // Convert absolute lines to visual lines
         let start_visual = start_line as i32 - history_size + display_offset;
         let end_visual = end_line
@@ -690,6 +697,11 @@ impl TerminalView {
         });
 
         cx.notify();
+    }
+
+    /// Get currently selected zone (for rendering)
+    pub fn selected_zone(&self) -> Option<(usize, Option<usize>)> {
+        self.selected_zone
     }
 
     /// Get zone at mouse position (for shell integration block selection)
@@ -832,6 +844,7 @@ impl TerminalView {
         self.selection_end = None;
         self.is_selecting = false;
         self.current_selection_type = None;
+        self.selected_zone = None; // Also clear zone selection
         cx.notify();
     }
 
@@ -1237,6 +1250,7 @@ impl Render for TerminalView {
                         theme.clone(),
                         selection,
                         self.shared_bounds.clone(),
+                        self.selected_zone,
                     )),
             )
             .child(scrollbar);
