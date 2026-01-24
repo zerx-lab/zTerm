@@ -3,7 +3,7 @@ name: Claude CI Auto-Fix
 on:
   # 当 CI workflow 完成时触发
   workflow_run:
-    workflows: ["定期安全扫描"]  # 监听安全扫描 workflow
+    workflows: ["CI", "定期安全扫描"]  # 监听 CI 和安全扫描 workflow
     types: [completed]
 
   # 也可以通过 PR 评论手动触发
