@@ -2,27 +2,27 @@
 resolver = "3"
 members = [
     "crates/z_term",
-    "crates/axon_terminal",
-    "crates/axon_ui",
-    "crates/axon_input",
-    "crates/axon_common",
+    "crates/zterm_terminal",
+    "crates/zterm_ui",
+    "crates/zterm_input",
+    "crates/zterm_common",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-authors = ["Axon Team"]
+authors = ["zTerm Team"]
 license = "MIT"
 rust-version = "1.85"
-repository = "https://github.com/axon-term/axon_term"
+repository = "https://github.com/zerx-lab/zTerm"
 description = "A modern cross-platform terminal emulator built with Rust and GPUI"
 
 [workspace.dependencies]
 # Internal crates
-axon_common = { path = "crates/axon_common" }
-axon_terminal = { path = "crates/axon_terminal" }
-axon_ui = { path = "crates/axon_ui" }
-axon_input = { path = "crates/axon_input" }
+zterm_common = { path = "crates/zterm_common" }
+zterm_terminal = { path = "crates/zterm_terminal" }
+zterm_ui = { path = "crates/zterm_ui" }
+zterm_input = { path = "crates/zterm_input" }
 
 # GPUI - 跟随 gpui-component 的 gpui 版本
 gpui = { git = "https://github.com/zed-industries/zed" }

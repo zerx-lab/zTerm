@@ -1,7 +1,7 @@
 //! Workspace management
 
-use axon_terminal::{Terminal, TerminalSize};
-use axon_ui::TerminalView;
+use zterm_terminal::{Terminal, TerminalSize};
+use zterm_ui::TerminalView;
 use gpui::*;
 use tracing::debug;
 

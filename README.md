@@ -127,10 +127,10 @@ cargo run -p z_term --release
 zterm/
 ├── crates/
 │   ├── z_term/          # 应用入口
-│   ├── axon_terminal/   # 终端核心 (PTY, VT 解析)
-│   ├── axon_ui/         # UI 组件 (标题栏, 终端视图, 滚动条)
-│   ├── axon_input/      # 输入处理
-│   └── axon_common/     # 公共模块
+│   ├── zterm_terminal/  # 终端核心 (PTY, VT 解析)
+│   ├── zterm_ui/        # UI 组件 (标题栏, 终端视图, 滚动条)
+│   ├── zterm_input/     # 输入处理
+│   └── zterm_common/    # 公共模块
 └── assets/              # 静态资源 (字体, 图标, 主题)
 ```
 

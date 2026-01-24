@@ -1,7 +1,7 @@
 //! Pane management for split views
 
-use axon_terminal::Terminal;
-use axon_ui::TerminalView;
+use zterm_terminal::Terminal;
+use zterm_ui::TerminalView;
 use gpui::*;
 
 /// Layout direction for panes

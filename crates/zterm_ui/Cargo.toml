@@ -1,47 +1,35 @@
 [package]
-name = "z_term"
+name = "zterm_ui"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Main application for zTerm"
-
-[[bin]]
-name = "zterm"
-path = "src/main.rs"
+description = "UI components for zTerm"
 
 [dependencies]
 zterm_common.workspace = true
 zterm_terminal.workspace = true
-zterm_ui.workspace = true
-zterm_input.workspace = true
 
 # GPUI
 gpui.workspace = true
 gpui-component.workspace = true
 
-# Async
-smol.workspace = true
-futures.workspace = true
-
 # Utilities
 anyhow.workspace = true
 tracing.workspace = true
-tracing-subscriber.workspace = true
 parking_lot.workspace = true
+unicode-width.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 dirs.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows.workspace = true
 
 [dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
 
-[features]
-default = []
-
-[build-dependencies]
-ico = "0.5.0"
-resvg = "0.45.1"
-tiny-skia = "0.11.4"
-winresource = "0.1.29"
+[[bench]]
+name = "ui_benchmarks"
+harness = false
