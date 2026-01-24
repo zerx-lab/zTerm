@@ -148,18 +148,14 @@ jobs:
             actions: read
             checks: read
           # 允许 Claude 运行必要的工具来修复 CI
-          allowed_tools: |
-            Bash(cargo fmt:*)
-            Bash(cargo clippy:*)
-            Bash(cargo test:*)
-            Bash(cargo build:*)
-            Bash(cargo check:*)
-            Bash(git:*)
-            Edit
-            Write
-            Read
-            Glob
-            Grep
+          claude_args: >-
+            --allowedTools "Bash(cargo:*)"
+            --allowedTools "Bash(git:*)"
+            --allowedTools "Edit"
+            --allowedTools "Write"
+            --allowedTools "Read"
+            --allowedTools "Glob"
+            --allowedTools "Grep"
           prompt: |
             CI workflow "定期安全扫描" has failed on this PR. Please:
 
