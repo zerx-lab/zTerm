@@ -33,3 +33,5 @@ CLAUDE.md
 
 # Worktrees
 /.worktree/
+/docs
+nul

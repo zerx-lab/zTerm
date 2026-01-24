@@ -9,8 +9,8 @@ use crate::TerminalEvent;
 use alacritty_terminal::event::{Event as AlacTermEvent, EventListener, WindowSize};
 use alacritty_terminal::event_loop::{EventLoop, Msg, Notifier};
 use alacritty_terminal::grid::Dimensions;
-use alacritty_terminal::index::{Column, Line, Point as AlacPoint};
-use alacritty_terminal::selection::SelectionRange;
+use alacritty_terminal::index::{Column, Direction as AlacDirection, Line, Point as AlacPoint};
+use alacritty_terminal::selection::{Selection, SelectionRange, SelectionType};
 use alacritty_terminal::sync::FairMutex;
 use alacritty_terminal::term::cell::Cell;
 use alacritty_terminal::term::{Config, RenderableCursor, TermMode};
@@ -663,6 +663,48 @@ impl Terminal {
         self.sync_content();
     }
 
+    /// Start a new selection at the given grid position
+    ///
+    /// # Arguments
+    /// * `col` - Column position (0-based)
+    /// * `row` - Row position relative to display (0-based, positive = visible screen)
+    /// * `side` - Which side of the cell (Left or Right)
+    /// * `selection_type` - Type of selection (Simple, Semantic, Lines)
+    pub fn start_selection(
+        &mut self,
+        col: usize,
+        row: i32,
+        side: AlacDirection,
+        selection_type: SelectionType,
+    ) {
+        let mut term = self.term.lock();
+        let display_offset = term.grid().display_offset();
+        // Convert row to alacritty's Line coordinate (accounting for display offset)
+        let point = AlacPoint::new(Line(row - display_offset as i32), Column(col));
+        let selection = Selection::new(selection_type, point, side);
+        term.selection = Some(selection);
+        drop(term);
+        self.sync_content();
+    }
+
+    /// Update the current selection to extend to the given grid position
+    ///
+    /// # Arguments
+    /// * `col` - Column position (0-based)
+    /// * `row` - Row position relative to display (0-based, positive = visible screen)
+    /// * `side` - Which side of the cell (Left or Right)
+    pub fn update_selection(&mut self, col: usize, row: i32, side: AlacDirection) {
+        let mut term = self.term.lock();
+        if let Some(mut selection) = term.selection.take() {
+            let display_offset = term.grid().display_offset();
+            let point = AlacPoint::new(Line(row - display_offset as i32), Column(col));
+            selection.update(point, side);
+            term.selection = Some(selection);
+        }
+        drop(term);
+        self.sync_content();
+    }
+
     /// Check if terminal mode includes mouse reporting
     pub fn mouse_mode(&self) -> bool {
         self.last_content.mode.intersects(TermMode::MOUSE_MODE)
@@ -676,5 +718,25 @@ impl Terminal {
     /// Check if cursor should be visible (DECTCEM mode)
     pub fn cursor_visible(&self) -> bool {
         self.last_content.mode.contains(TermMode::SHOW_CURSOR)
+    }
+
+    /// Clear the terminal screen
+    ///
+    /// This clears the visible screen and moves cursor to top-left.
+    /// Unlike sending escape sequences to PTY, this directly manipulates
+    /// the terminal emulator state.
+    pub fn clear_screen(&mut self) {
+        use alacritty_terminal::vte::ansi::{ClearMode, Handler};
+
+        {
+            let mut term = self.term.lock();
+            // Clear the entire screen
+            term.clear_screen(ClearMode::All);
+            // Move cursor to home position (line 0, column 0)
+            term.goto(0, 0);
+        }
+
+        // Sync content to reflect changes
+        self.sync_content();
     }
 }

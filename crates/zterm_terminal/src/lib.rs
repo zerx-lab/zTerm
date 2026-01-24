@@ -8,6 +8,10 @@
 // Re-export alacritty_terminal for use by rendering code
 pub use alacritty_terminal;
 
+// Re-export selection types for mouse selection
+pub use alacritty_terminal::index::Direction as SelectionSide;
+pub use alacritty_terminal::selection::SelectionType;
+
 pub mod terminal;
 
 // Keep these for backwards compatibility, but they're now unused

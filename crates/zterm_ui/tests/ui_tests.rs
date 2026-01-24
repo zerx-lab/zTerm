@@ -11,13 +11,13 @@ mod tab_info_tests {
 
     #[test]
     fn test_tab_info_creation() {
-        let tab = TabInfo {
-            id: 1,
-            title: "Terminal 1".to_string(),
-            active: true,
-            shell_name: "pwsh".to_string(),
-            working_directory: "C:\\Users\\test".to_string(),
-        };
+        let tab = TabInfo::new(
+            1,
+            "Terminal 1".to_string(),
+            true,
+            "pwsh".to_string(),
+            "C:\\Users\\test".to_string(),
+        );
         assert_eq!(tab.id, 1);
         assert_eq!(tab.title, "Terminal 1");
         assert!(tab.active);
@@ -26,13 +26,13 @@ mod tab_info_tests {
 
     #[test]
     fn test_tab_info_clone() {
-        let tab = TabInfo {
-            id: 2,
-            title: "Terminal 2".to_string(),
-            active: false,
-            shell_name: "bash".to_string(),
-            working_directory: "/home/user".to_string(),
-        };
+        let tab = TabInfo::new(
+            2,
+            "Terminal 2".to_string(),
+            false,
+            "bash".to_string(),
+            "/home/user".to_string(),
+        );
         let cloned = tab.clone();
         assert_eq!(tab.id, cloned.id);
         assert_eq!(tab.title, cloned.title);
@@ -42,51 +42,51 @@ mod tab_info_tests {
 
     #[test]
     fn test_tab_info_inactive() {
-        let tab = TabInfo {
-            id: 0,
-            title: "Inactive Tab".to_string(),
-            active: false,
-            shell_name: "zsh".to_string(),
-            working_directory: "~".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            "Inactive Tab".to_string(),
+            false,
+            "zsh".to_string(),
+            "~".to_string(),
+        );
         assert!(!tab.active);
     }
 
     #[test]
     fn test_tab_info_empty_title() {
-        let tab = TabInfo {
-            id: 0,
-            title: String::new(),
-            active: true,
-            shell_name: "cmd".to_string(),
-            working_directory: "C:\\".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            String::new(),
+            true,
+            "cmd".to_string(),
+            "C:\\".to_string(),
+        );
         assert!(tab.title.is_empty());
     }
 
     #[test]
     fn test_display_directory_home() {
-        let tab = TabInfo {
-            id: 0,
-            title: "Test".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: dirs::home_dir()
+        let tab = TabInfo::new(
+            0,
+            "Test".to_string(),
+            true,
+            "bash".to_string(),
+            dirs::home_dir()
                 .map(|p| p.to_string_lossy().to_string())
                 .unwrap_or_else(|| "~".to_string()),
-        };
+        );
         assert_eq!(tab.display_directory(), "~");
     }
 
     #[test]
     fn test_display_directory_subdir() {
-        let tab = TabInfo {
-            id: 0,
-            title: "Test".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "/some/path/to/project".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            "Test".to_string(),
+            true,
+            "bash".to_string(),
+            "/some/path/to/project".to_string(),
+        );
         // Should show the last component
         assert_eq!(tab.display_directory(), "project");
     }

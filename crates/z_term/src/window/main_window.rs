@@ -1,6 +1,10 @@
 //! Main application window
 
-use crate::app::{CloseActiveTab, FocusTerminal, NewTab, NextTab, PrevTab, Quit};
+use crate::app::{
+    CloseActiveTab, CommandPalette, FocusTerminal, GotoTab1, GotoTab2, GotoTab3, GotoTab4,
+    GotoTab5, GotoTab6, GotoTab7, GotoTab8, GotoTab9, NewTab, NextTab, PrevTab, Quit, ResetZoom,
+    SplitHorizontal, SplitVertical, ToggleFullscreen, ZoomIn, ZoomOut,
+};
 use crate::workspace::Workspace;
 use zterm_ui::{TabInfo, TitleBar, TitleBarEvent};
 use gpui::*;
@@ -164,6 +168,112 @@ impl MainWindow {
         // Focus the new active terminal
         self.focus_active_terminal(window, cx);
     }
+
+    fn handle_toggle_fullscreen(
+        &mut self,
+        _: &ToggleFullscreen,
+        window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) {
+        window.toggle_fullscreen();
+    }
+
+    fn handle_split_horizontal(
+        &mut self,
+        _: &SplitHorizontal,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) {
+        // TODO: Implement horizontal split when pane system is ready
+        tracing::info!("Split horizontal not yet implemented");
+    }
+
+    fn handle_split_vertical(
+        &mut self,
+        _: &SplitVertical,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) {
+        // TODO: Implement vertical split when pane system is ready
+        tracing::info!("Split vertical not yet implemented");
+    }
+
+    fn handle_zoom_in(&mut self, _: &ZoomIn, _window: &mut Window, _cx: &mut Context<Self>) {
+        // TODO: Implement zoom in
+        tracing::info!("Zoom in not yet implemented");
+    }
+
+    fn handle_zoom_out(&mut self, _: &ZoomOut, _window: &mut Window, _cx: &mut Context<Self>) {
+        // TODO: Implement zoom out
+        tracing::info!("Zoom out not yet implemented");
+    }
+
+    fn handle_reset_zoom(&mut self, _: &ResetZoom, _window: &mut Window, _cx: &mut Context<Self>) {
+        // TODO: Implement reset zoom
+        tracing::info!("Reset zoom not yet implemented");
+    }
+
+    fn handle_command_palette(
+        &mut self,
+        _: &CommandPalette,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) {
+        // TODO: Implement command palette
+        tracing::info!("Command palette not yet implemented");
+    }
+
+    /// Go to a specific tab by index (0-based)
+    fn goto_tab(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let tab_count = self.workspace.read(cx).tabs().len();
+        if index < tab_count {
+            self.workspace.update(cx, |ws, cx| {
+                ws.set_active_tab(index, cx);
+            });
+            self.title_bar.update(cx, |title_bar, _| {
+                title_bar.scroll_to_tab(index);
+            });
+            self.focus_active_terminal(window, cx);
+        }
+    }
+
+    fn handle_goto_tab_1(&mut self, _: &GotoTab1, window: &mut Window, cx: &mut Context<Self>) {
+        self.goto_tab(0, window, cx);
+    }
+
+    fn handle_goto_tab_2(&mut self, _: &GotoTab2, window: &mut Window, cx: &mut Context<Self>) {
+        self.goto_tab(1, window, cx);
+    }
+
+    fn handle_goto_tab_3(&mut self, _: &GotoTab3, window: &mut Window, cx: &mut Context<Self>) {
+        self.goto_tab(2, window, cx);
+    }
+
+    fn handle_goto_tab_4(&mut self, _: &GotoTab4, window: &mut Window, cx: &mut Context<Self>) {
+        self.goto_tab(3, window, cx);
+    }
+
+    fn handle_goto_tab_5(&mut self, _: &GotoTab5, window: &mut Window, cx: &mut Context<Self>) {
+        self.goto_tab(4, window, cx);
+    }
+
+    fn handle_goto_tab_6(&mut self, _: &GotoTab6, window: &mut Window, cx: &mut Context<Self>) {
+        self.goto_tab(5, window, cx);
+    }
+
+    fn handle_goto_tab_7(&mut self, _: &GotoTab7, window: &mut Window, cx: &mut Context<Self>) {
+        self.goto_tab(6, window, cx);
+    }
+
+    fn handle_goto_tab_8(&mut self, _: &GotoTab8, window: &mut Window, cx: &mut Context<Self>) {
+        self.goto_tab(7, window, cx);
+    }
+
+    fn handle_goto_tab_9(&mut self, _: &GotoTab9, window: &mut Window, cx: &mut Context<Self>) {
+        // Ctrl+9 goes to the last tab (like browsers)
+        let last_index = self.workspace.read(cx).tabs().len().saturating_sub(1);
+        self.goto_tab(last_index, window, cx);
+    }
 }
 
 impl Render for MainWindow {
@@ -221,6 +331,23 @@ impl Render for MainWindow {
             .on_action(cx.listener(Self::handle_next_tab))
             .on_action(cx.listener(Self::handle_prev_tab))
             .on_action(cx.listener(Self::handle_focus_terminal))
+            .on_action(cx.listener(Self::handle_toggle_fullscreen))
+            .on_action(cx.listener(Self::handle_split_horizontal))
+            .on_action(cx.listener(Self::handle_split_vertical))
+            .on_action(cx.listener(Self::handle_zoom_in))
+            .on_action(cx.listener(Self::handle_zoom_out))
+            .on_action(cx.listener(Self::handle_reset_zoom))
+            .on_action(cx.listener(Self::handle_command_palette))
+            // Tab switching (Ctrl+1-9)
+            .on_action(cx.listener(Self::handle_goto_tab_1))
+            .on_action(cx.listener(Self::handle_goto_tab_2))
+            .on_action(cx.listener(Self::handle_goto_tab_3))
+            .on_action(cx.listener(Self::handle_goto_tab_4))
+            .on_action(cx.listener(Self::handle_goto_tab_5))
+            .on_action(cx.listener(Self::handle_goto_tab_6))
+            .on_action(cx.listener(Self::handle_goto_tab_7))
+            .on_action(cx.listener(Self::handle_goto_tab_8))
+            .on_action(cx.listener(Self::handle_goto_tab_9))
             // Title bar with integrated tabs (like Warp Terminal)
             .child(self.title_bar.clone())
             // Terminal content

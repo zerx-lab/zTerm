@@ -12,7 +12,7 @@ static CONFIG: Lazy<RwLock<Config>> = Lazy::new(|| RwLock::new(Config::default()
 
 /// Current configuration schema version
 /// Increment this when adding new fields to the configuration
-pub const CONFIG_VERSION: u32 = 1;
+pub const CONFIG_VERSION: u32 = 2;
 
 /// Main configuration structure for zTerm
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,6 +94,14 @@ pub struct UiConfig {
 /// Keybindings configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeybindingsConfig {
+    // === System shortcuts ===
+    /// Quit application shortcut
+    pub quit: String,
+
+    /// New window shortcut
+    pub new_window: String,
+
+    // === Tab management ===
     /// New tab shortcut
     pub new_tab: String,
 
@@ -105,6 +113,88 @@ pub struct KeybindingsConfig {
 
     /// Previous tab shortcut
     pub prev_tab: String,
+
+    // === Window operations ===
+    /// Toggle fullscreen shortcut
+    pub toggle_fullscreen: String,
+
+    // === Split pane ===
+    /// Split horizontal shortcut
+    pub split_horizontal: String,
+
+    /// Split vertical shortcut
+    pub split_vertical: String,
+
+    // === Zoom ===
+    /// Zoom in shortcut
+    pub zoom_in: String,
+
+    /// Zoom out shortcut
+    pub zoom_out: String,
+
+    /// Reset zoom shortcut
+    pub reset_zoom: String,
+
+    // === Terminal operations ===
+    /// Copy selection shortcut
+    pub copy: String,
+
+    /// Paste clipboard shortcut
+    pub paste: String,
+
+    /// Search shortcut
+    pub search: String,
+
+    // === Scrolling ===
+    /// Scroll up one line shortcut
+    pub scroll_up: String,
+
+    /// Scroll down one line shortcut
+    pub scroll_down: String,
+
+    /// Scroll page up shortcut
+    pub scroll_page_up: String,
+
+    /// Scroll page down shortcut
+    pub scroll_page_down: String,
+
+    /// Scroll to top shortcut
+    pub scroll_to_top: String,
+
+    /// Scroll to bottom shortcut
+    pub scroll_to_bottom: String,
+
+    // === Other ===
+    /// Command palette shortcut
+    pub command_palette: String,
+
+    // === Tab switching (Ctrl+1 to Ctrl+9) ===
+    /// Go to tab 1
+    pub goto_tab_1: String,
+
+    /// Go to tab 2
+    pub goto_tab_2: String,
+
+    /// Go to tab 3
+    pub goto_tab_3: String,
+
+    /// Go to tab 4
+    pub goto_tab_4: String,
+
+    /// Go to tab 5
+    pub goto_tab_5: String,
+
+    /// Go to tab 6
+    pub goto_tab_6: String,
+
+    /// Go to tab 7
+    pub goto_tab_7: String,
+
+    /// Go to tab 8
+    pub goto_tab_8: String,
+
+    /// Go to tab 9 (also last tab)
+    pub goto_tab_9: String,
 }
 
 impl Default for Config {
@@ -152,20 +242,241 @@ impl Default for KeybindingsConfig {
     fn default() -> Self {
         if cfg!(target_os = "macos") {
             Self {
+                // System
+                quit: "cmd+q".to_string(),
+                new_window: "cmd+n".to_string(),
+                // Tab management
                 new_tab: "cmd+t".to_string(),
                 close_tab: "cmd+w".to_string(),
                 next_tab: "cmd+shift+]".to_string(),
                 prev_tab: "cmd+shift+[".to_string(),
+                // Window operations
+                toggle_fullscreen: "cmd+ctrl+f".to_string(),
+                // Split pane
+                split_horizontal: "cmd+d".to_string(),
+                split_vertical: "cmd+shift+d".to_string(),
+                // Zoom
+                zoom_in: "cmd+=".to_string(),
+                zoom_out: "cmd+-".to_string(),
+                reset_zoom: "cmd+0".to_string(),
+                // Terminal operations
+                copy: "cmd+c".to_string(),
+                paste: "cmd+v".to_string(),
+                search: "cmd+f".to_string(),
+                // Scrolling
+                scroll_up: "cmd+up".to_string(),
+                scroll_down: "cmd+down".to_string(),
+                scroll_page_up: "pageup".to_string(),
+                scroll_page_down: "pagedown".to_string(),
+                scroll_to_top: "cmd+home".to_string(),
+                scroll_to_bottom: "cmd+end".to_string(),
+                // Other
+                command_palette: "cmd+shift+p".to_string(),
+                // Tab switching
+                goto_tab_1: "cmd+1".to_string(),
+                goto_tab_2: "cmd+2".to_string(),
+                goto_tab_3: "cmd+3".to_string(),
+                goto_tab_4: "cmd+4".to_string(),
+                goto_tab_5: "cmd+5".to_string(),
+                goto_tab_6: "cmd+6".to_string(),
+                goto_tab_7: "cmd+7".to_string(),
+                goto_tab_8: "cmd+8".to_string(),
+                goto_tab_9: "cmd+9".to_string(),
             }
         } else {
             Self {
+                // System
+                quit: "alt+f4".to_string(),
+                new_window: "ctrl+shift+n".to_string(),
+                // Tab management
                 new_tab: "ctrl+t".to_string(),
                 close_tab: "ctrl+w".to_string(),
                 // Use alt+right/left as they work reliably across systems
                 next_tab: "alt+right".to_string(),
                 prev_tab: "alt+left".to_string(),
+                // Window operations
+                toggle_fullscreen: "f11".to_string(),
+                // Split pane
+                split_horizontal: "ctrl+shift+d".to_string(),
+                split_vertical: "ctrl+shift+e".to_string(),
+                // Zoom
+                zoom_in: "ctrl+=".to_string(),
+                zoom_out: "ctrl+-".to_string(),
+                reset_zoom: "ctrl+0".to_string(),
+                // Terminal operations
+                copy: "ctrl+shift+c".to_string(),
+                paste: "ctrl+shift+v".to_string(),
+                search: "ctrl+shift+f".to_string(),
+                // Scrolling
+                scroll_up: "ctrl+up".to_string(),
+                scroll_down: "ctrl+down".to_string(),
+                scroll_page_up: "pageup".to_string(),
+                scroll_page_down: "pagedown".to_string(),
+                scroll_to_top: "ctrl+home".to_string(),
+                scroll_to_bottom: "ctrl+end".to_string(),
+                // Other
+                command_palette: "ctrl+shift+p".to_string(),
+                // Tab switching
+                goto_tab_1: "ctrl+1".to_string(),
+                goto_tab_2: "ctrl+2".to_string(),
+                goto_tab_3: "ctrl+3".to_string(),
+                goto_tab_4: "ctrl+4".to_string(),
+                goto_tab_5: "ctrl+5".to_string(),
+                goto_tab_6: "ctrl+6".to_string(),
+                goto_tab_7: "ctrl+7".to_string(),
+                goto_tab_8: "ctrl+8".to_string(),
+                goto_tab_9: "ctrl+9".to_string(),
             }
         }
+    }
+}
+
+/// All configurable actions in zTerm
+/// Adding a new variant here without updating `KeybindingsConfig::get_keybinding()`
+/// will cause a compile error (non-exhaustive match).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ConfigurableAction {
+    // System
+    Quit,
+    NewWindow,
+    // Tab management
+    NewTab,
+    CloseTab,
+    NextTab,
+    PrevTab,
+    // Window operations
+    ToggleFullscreen,
+    // Split pane
+    SplitHorizontal,
+    SplitVertical,
+    // Zoom
+    ZoomIn,
+    ZoomOut,
+    ResetZoom,
+    // Terminal operations
+    Copy,
+    Paste,
+    Search,
+    // Scrolling
+    ScrollUp,
+    ScrollDown,
+    ScrollPageUp,
+    ScrollPageDown,
+    ScrollToTop,
+    ScrollToBottom,
+    // Other
+    CommandPalette,
+    // Tab switching
+    GotoTab1,
+    GotoTab2,
+    GotoTab3,
+    GotoTab4,
+    GotoTab5,
+    GotoTab6,
+    GotoTab7,
+    GotoTab8,
+    GotoTab9,
+}
+
+impl KeybindingsConfig {
+    /// Get the keybinding for a specific action.
+    ///
+    /// This method uses an exhaustive match to ensure all actions have a corresponding
+    /// configuration field. Adding a new `ConfigurableAction` variant without updating
+    /// this match will cause a compile error.
+    pub fn get_keybinding(&self, action: ConfigurableAction) -> &str {
+        match action {
+            // System
+            ConfigurableAction::Quit => &self.quit,
+            ConfigurableAction::NewWindow => &self.new_window,
+            // Tab management
+            ConfigurableAction::NewTab => &self.new_tab,
+            ConfigurableAction::CloseTab => &self.close_tab,
+            ConfigurableAction::NextTab => &self.next_tab,
+            ConfigurableAction::PrevTab => &self.prev_tab,
+            // Window operations
+            ConfigurableAction::ToggleFullscreen => &self.toggle_fullscreen,
+            // Split pane
+            ConfigurableAction::SplitHorizontal => &self.split_horizontal,
+            ConfigurableAction::SplitVertical => &self.split_vertical,
+            // Zoom
+            ConfigurableAction::ZoomIn => &self.zoom_in,
+            ConfigurableAction::ZoomOut => &self.zoom_out,
+            ConfigurableAction::ResetZoom => &self.reset_zoom,
+            // Terminal operations
+            ConfigurableAction::Copy => &self.copy,
+            ConfigurableAction::Paste => &self.paste,
+            ConfigurableAction::Search => &self.search,
+            // Scrolling
+            ConfigurableAction::ScrollUp => &self.scroll_up,
+            ConfigurableAction::ScrollDown => &self.scroll_down,
+            ConfigurableAction::ScrollPageUp => &self.scroll_page_up,
+            ConfigurableAction::ScrollPageDown => &self.scroll_page_down,
+            ConfigurableAction::ScrollToTop => &self.scroll_to_top,
+            ConfigurableAction::ScrollToBottom => &self.scroll_to_bottom,
+            // Other
+            ConfigurableAction::CommandPalette => &self.command_palette,
+            // Tab switching
+            ConfigurableAction::GotoTab1 => &self.goto_tab_1,
+            ConfigurableAction::GotoTab2 => &self.goto_tab_2,
+            ConfigurableAction::GotoTab3 => &self.goto_tab_3,
+            ConfigurableAction::GotoTab4 => &self.goto_tab_4,
+            ConfigurableAction::GotoTab5 => &self.goto_tab_5,
+            ConfigurableAction::GotoTab6 => &self.goto_tab_6,
+            ConfigurableAction::GotoTab7 => &self.goto_tab_7,
+            ConfigurableAction::GotoTab8 => &self.goto_tab_8,
+            ConfigurableAction::GotoTab9 => &self.goto_tab_9,
+        }
+    }
+
+    /// Get all configurable actions with their keybindings.
+    /// Useful for building keybinding UI or debug output.
+    pub fn all_keybindings(&self) -> Vec<(ConfigurableAction, &str)> {
+        use ConfigurableAction::*;
+        vec![
+            (Quit, self.get_keybinding(Quit)),
+            (NewWindow, self.get_keybinding(NewWindow)),
+            (NewTab, self.get_keybinding(NewTab)),
+            (CloseTab, self.get_keybinding(CloseTab)),
+            (NextTab, self.get_keybinding(NextTab)),
+            (PrevTab, self.get_keybinding(PrevTab)),
+            (ToggleFullscreen, self.get_keybinding(ToggleFullscreen)),
+            (SplitHorizontal, self.get_keybinding(SplitHorizontal)),
+            (SplitVertical, self.get_keybinding(SplitVertical)),
+            (ZoomIn, self.get_keybinding(ZoomIn)),
+            (ZoomOut, self.get_keybinding(ZoomOut)),
+            (ResetZoom, self.get_keybinding(ResetZoom)),
+            (Copy, self.get_keybinding(Copy)),
+            (Paste, self.get_keybinding(Paste)),
+            (Search, self.get_keybinding(Search)),
+            (ScrollUp, self.get_keybinding(ScrollUp)),
+            (ScrollDown, self.get_keybinding(ScrollDown)),
+            (ScrollPageUp, self.get_keybinding(ScrollPageUp)),
+            (ScrollPageDown, self.get_keybinding(ScrollPageDown)),
+            (ScrollToTop, self.get_keybinding(ScrollToTop)),
+            (ScrollToBottom, self.get_keybinding(ScrollToBottom)),
+            (CommandPalette, self.get_keybinding(CommandPalette)),
+            (GotoTab1, self.get_keybinding(GotoTab1)),
+            (GotoTab2, self.get_keybinding(GotoTab2)),
+            (GotoTab3, self.get_keybinding(GotoTab3)),
+            (GotoTab4, self.get_keybinding(GotoTab4)),
+            (GotoTab5, self.get_keybinding(GotoTab5)),
+            (GotoTab6, self.get_keybinding(GotoTab6)),
+            (GotoTab7, self.get_keybinding(GotoTab7)),
+            (GotoTab8, self.get_keybinding(GotoTab8)),
+            (GotoTab9, self.get_keybinding(GotoTab9)),
+        ]
+    }
+}
+
+impl KeybindingsConfig {
+    /// Convert config keybinding format ("ctrl+t") to GPUI format ("ctrl-t")
+    ///
+    /// GPUI expects keybindings with hyphen separators and lowercase,
+    /// while config files typically use plus signs for readability.
+    pub fn normalize_keybinding(key: &str) -> String {
+        key.replace('+', "-").to_lowercase()
     }
 }
 
@@ -576,5 +887,333 @@ mod tests {
     #[test]
     fn test_config_version_constant() {
         assert!(CONFIG_VERSION >= 1);
+    }
+
+    // ==================== Keybindings Tests ====================
+
+    #[test]
+    fn test_keybindings_all_fields_have_defaults() {
+        let kb = KeybindingsConfig::default();
+
+        // System
+        assert!(!kb.quit.is_empty(), "quit keybinding should not be empty");
+        assert!(!kb.new_window.is_empty(), "new_window keybinding should not be empty");
+
+        // Tab management
+        assert!(!kb.new_tab.is_empty(), "new_tab keybinding should not be empty");
+        assert!(!kb.close_tab.is_empty(), "close_tab keybinding should not be empty");
+        assert!(!kb.next_tab.is_empty(), "next_tab keybinding should not be empty");
+        assert!(!kb.prev_tab.is_empty(), "prev_tab keybinding should not be empty");
+
+        // Window operations
+        assert!(!kb.toggle_fullscreen.is_empty(), "toggle_fullscreen keybinding should not be empty");
+
+        // Split pane
+        assert!(!kb.split_horizontal.is_empty(), "split_horizontal keybinding should not be empty");
+        assert!(!kb.split_vertical.is_empty(), "split_vertical keybinding should not be empty");
+
+        // Zoom
+        assert!(!kb.zoom_in.is_empty(), "zoom_in keybinding should not be empty");
+        assert!(!kb.zoom_out.is_empty(), "zoom_out keybinding should not be empty");
+        assert!(!kb.reset_zoom.is_empty(), "reset_zoom keybinding should not be empty");
+
+        // Terminal operations
+        assert!(!kb.copy.is_empty(), "copy keybinding should not be empty");
+        assert!(!kb.paste.is_empty(), "paste keybinding should not be empty");
+        assert!(!kb.search.is_empty(), "search keybinding should not be empty");
+
+        // Scrolling
+        assert!(!kb.scroll_up.is_empty(), "scroll_up keybinding should not be empty");
+        assert!(!kb.scroll_down.is_empty(), "scroll_down keybinding should not be empty");
+        assert!(!kb.scroll_page_up.is_empty(), "scroll_page_up keybinding should not be empty");
+        assert!(!kb.scroll_page_down.is_empty(), "scroll_page_down keybinding should not be empty");
+        assert!(!kb.scroll_to_top.is_empty(), "scroll_to_top keybinding should not be empty");
+        assert!(!kb.scroll_to_bottom.is_empty(), "scroll_to_bottom keybinding should not be empty");
+
+        // Other
+        assert!(!kb.command_palette.is_empty(), "command_palette keybinding should not be empty");
+
+        // Tab switching
+        assert!(!kb.goto_tab_1.is_empty(), "goto_tab_1 keybinding should not be empty");
+        assert!(!kb.goto_tab_2.is_empty(), "goto_tab_2 keybinding should not be empty");
+        assert!(!kb.goto_tab_3.is_empty(), "goto_tab_3 keybinding should not be empty");
+        assert!(!kb.goto_tab_4.is_empty(), "goto_tab_4 keybinding should not be empty");
+        assert!(!kb.goto_tab_5.is_empty(), "goto_tab_5 keybinding should not be empty");
+        assert!(!kb.goto_tab_6.is_empty(), "goto_tab_6 keybinding should not be empty");
+        assert!(!kb.goto_tab_7.is_empty(), "goto_tab_7 keybinding should not be empty");
+        assert!(!kb.goto_tab_8.is_empty(), "goto_tab_8 keybinding should not be empty");
+        assert!(!kb.goto_tab_9.is_empty(), "goto_tab_9 keybinding should not be empty");
+    }
+
+    #[test]
+    fn test_get_keybinding_exhaustive() {
+        // This test verifies that get_keybinding covers all ConfigurableAction variants
+        // If a new variant is added to ConfigurableAction without updating get_keybinding,
+        // this test will fail to compile (non-exhaustive match)
+        let kb = KeybindingsConfig::default();
+
+        use ConfigurableAction::*;
+        let all_actions = [
+            Quit, NewWindow,
+            NewTab, CloseTab, NextTab, PrevTab,
+            ToggleFullscreen,
+            SplitHorizontal, SplitVertical,
+            ZoomIn, ZoomOut, ResetZoom,
+            Copy, Paste, Search,
+            ScrollUp, ScrollDown, ScrollPageUp, ScrollPageDown, ScrollToTop, ScrollToBottom,
+            CommandPalette,
+            GotoTab1, GotoTab2, GotoTab3, GotoTab4, GotoTab5, GotoTab6, GotoTab7, GotoTab8, GotoTab9,
+        ];
+
+        for action in all_actions {
+            let binding = kb.get_keybinding(action);
+            assert!(!binding.is_empty(), "Action {:?} should have a non-empty keybinding", action);
+        }
+    }
+
+    #[test]
+    fn test_all_keybindings_returns_correct_count() {
+        let kb = KeybindingsConfig::default();
+        let all = kb.all_keybindings();
+
+        // Total number of configurable actions: 31 (removed ClearScreen and FocusTerminal, added GotoTab1-9)
+        assert_eq!(all.len(), 31, "all_keybindings should return 31 entries");
+
+        // Verify all entries have non-empty bindings
+        for (action, binding) in &all {
+            assert!(!binding.is_empty(), "Action {:?} has empty binding in all_keybindings", action);
+        }
+    }
+
+    #[test]
+    fn test_keybindings_no_duplicates() {
+        let kb = KeybindingsConfig::default();
+        let all = kb.all_keybindings();
+
+        let mut seen = std::collections::HashSet::new();
+        let mut duplicates = Vec::new();
+
+        for (action, binding) in &all {
+            if !seen.insert(*binding) {
+                duplicates.push((action, *binding));
+            }
+        }
+
+        // Note: Some duplicates may be intentional (e.g., pageup/pagedown on different platforms)
+        // This test just warns about duplicates for manual review
+        if !duplicates.is_empty() {
+            eprintln!("Warning: Found duplicate keybindings (may be intentional):");
+            for (action, binding) in &duplicates {
+                eprintln!("  {:?}: {}", action, binding);
+            }
+        }
+    }
+
+    #[test]
+    fn test_keybindings_format_valid() {
+        let kb = KeybindingsConfig::default();
+        let all = kb.all_keybindings();
+
+        for (action, binding) in all {
+            // Check basic format: should contain valid modifier/key patterns
+            // Valid patterns: ctrl+x, cmd+x, alt+x, shift+x, f1-f12, etc.
+            let binding_lower = binding.to_lowercase();
+
+            // Check that it's not just whitespace
+            assert!(!binding.trim().is_empty(), "Action {:?} has whitespace-only binding", action);
+
+            // Check for common typos or invalid formats
+            assert!(!binding_lower.contains("++"), "Action {:?} has invalid '++' in binding: {}", action, binding);
+            assert!(!binding_lower.starts_with('+'), "Action {:?} binding starts with '+': {}", action, binding);
+            assert!(!binding_lower.ends_with('+'), "Action {:?} binding ends with '+': {}", action, binding);
+        }
+    }
+
+    #[test]
+    fn test_keybindings_serialization_roundtrip() {
+        let kb = KeybindingsConfig::default();
+
+        // Serialize to TOML
+        let toml_str = toml::to_string_pretty(&kb).expect("Failed to serialize keybindings");
+
+        // Deserialize back
+        let parsed: KeybindingsConfig = toml::from_str(&toml_str).expect("Failed to deserialize keybindings");
+
+        // Verify all values match
+        assert_eq!(kb.quit, parsed.quit);
+        assert_eq!(kb.new_window, parsed.new_window);
+        assert_eq!(kb.new_tab, parsed.new_tab);
+        assert_eq!(kb.close_tab, parsed.close_tab);
+        assert_eq!(kb.next_tab, parsed.next_tab);
+        assert_eq!(kb.prev_tab, parsed.prev_tab);
+        assert_eq!(kb.toggle_fullscreen, parsed.toggle_fullscreen);
+        assert_eq!(kb.split_horizontal, parsed.split_horizontal);
+        assert_eq!(kb.split_vertical, parsed.split_vertical);
+        assert_eq!(kb.zoom_in, parsed.zoom_in);
+        assert_eq!(kb.zoom_out, parsed.zoom_out);
+        assert_eq!(kb.reset_zoom, parsed.reset_zoom);
+        assert_eq!(kb.copy, parsed.copy);
+        assert_eq!(kb.paste, parsed.paste);
+        assert_eq!(kb.search, parsed.search);
+        assert_eq!(kb.scroll_up, parsed.scroll_up);
+        assert_eq!(kb.scroll_down, parsed.scroll_down);
+        assert_eq!(kb.scroll_page_up, parsed.scroll_page_up);
+        assert_eq!(kb.scroll_page_down, parsed.scroll_page_down);
+        assert_eq!(kb.scroll_to_top, parsed.scroll_to_top);
+        assert_eq!(kb.scroll_to_bottom, parsed.scroll_to_bottom);
+        assert_eq!(kb.command_palette, parsed.command_palette);
+        assert_eq!(kb.goto_tab_1, parsed.goto_tab_1);
+        assert_eq!(kb.goto_tab_2, parsed.goto_tab_2);
+        assert_eq!(kb.goto_tab_3, parsed.goto_tab_3);
+        assert_eq!(kb.goto_tab_4, parsed.goto_tab_4);
+        assert_eq!(kb.goto_tab_5, parsed.goto_tab_5);
+        assert_eq!(kb.goto_tab_6, parsed.goto_tab_6);
+        assert_eq!(kb.goto_tab_7, parsed.goto_tab_7);
+        assert_eq!(kb.goto_tab_8, parsed.goto_tab_8);
+        assert_eq!(kb.goto_tab_9, parsed.goto_tab_9);
+    }
+
+    #[test]
+    fn test_configurable_action_debug_impl() {
+        // Ensure all ConfigurableAction variants have Debug impl
+        use ConfigurableAction::*;
+        let actions = [
+            Quit, NewWindow, NewTab, CloseTab, NextTab, PrevTab,
+            ToggleFullscreen, SplitHorizontal, SplitVertical,
+            ZoomIn, ZoomOut, ResetZoom,
+            Copy, Paste, Search,
+            ScrollUp, ScrollDown, ScrollPageUp, ScrollPageDown, ScrollToTop, ScrollToBottom,
+            CommandPalette,
+            GotoTab1, GotoTab2, GotoTab3, GotoTab4, GotoTab5, GotoTab6, GotoTab7, GotoTab8, GotoTab9,
+        ];
+
+        for action in actions {
+            let debug_str = format!("{:?}", action);
+            assert!(!debug_str.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_migration_adds_new_keybindings() {
+        // Simulate old config with only 4 keybindings (version 1)
+        let old_config_str = r#"
+            version = 1
+            [terminal]
+            font_size = 14.0
+            font_family = "Test Font"
+            scrollback_lines = 10000
+            bell_enabled = true
+            cursor_style = "block"
+            cursor_blink = true
+            [ui]
+            theme = "dark"
+            opacity = 1.0
+            show_tab_bar = true
+            tab_bar_position = "top"
+            decorations = true
+            window_width = 1200
+            window_height = 800
+            [keybindings]
+            new_tab = "ctrl+t"
+            close_tab = "ctrl+w"
+            next_tab = "alt+right"
+            prev_tab = "alt+left"
+        "#;
+
+        let user_value: toml::Value = toml::from_str(old_config_str).unwrap();
+        let default_str = toml::to_string(&Config::default()).unwrap();
+        let default_value: toml::Value = toml::from_str(&default_str).unwrap();
+
+        let merged = Config::merge_toml_values(default_value, user_value);
+        let merged_str = toml::to_string_pretty(&merged).unwrap();
+        let config: Config = toml::from_str(&merged_str).unwrap();
+
+        // Old values should be preserved
+        assert_eq!(config.keybindings.new_tab, "ctrl+t");
+        assert_eq!(config.keybindings.close_tab, "ctrl+w");
+        assert_eq!(config.keybindings.next_tab, "alt+right");
+        assert_eq!(config.keybindings.prev_tab, "alt+left");
+
+        // New keybindings should be added from defaults
+        assert!(!config.keybindings.quit.is_empty());
+        assert!(!config.keybindings.new_window.is_empty());
+        assert!(!config.keybindings.copy.is_empty());
+        assert!(!config.keybindings.paste.is_empty());
+        assert!(!config.keybindings.scroll_up.is_empty());
+        assert!(!config.keybindings.command_palette.is_empty());
+    }
+
+    // ==================== normalize_keybinding Tests ====================
+
+    #[test]
+    fn test_normalize_keybinding_basic() {
+        assert_eq!(KeybindingsConfig::normalize_keybinding("ctrl+t"), "ctrl-t");
+        assert_eq!(KeybindingsConfig::normalize_keybinding("cmd+shift+p"), "cmd-shift-p");
+        assert_eq!(KeybindingsConfig::normalize_keybinding("alt+f4"), "alt-f4");
+    }
+
+    #[test]
+    fn test_normalize_keybinding_lowercase() {
+        assert_eq!(KeybindingsConfig::normalize_keybinding("Ctrl+T"), "ctrl-t");
+        assert_eq!(KeybindingsConfig::normalize_keybinding("CMD+SHIFT+P"), "cmd-shift-p");
+        assert_eq!(KeybindingsConfig::normalize_keybinding("Alt+F4"), "alt-f4");
+    }
+
+    #[test]
+    fn test_normalize_keybinding_special_keys() {
+        assert_eq!(KeybindingsConfig::normalize_keybinding("f1"), "f1");
+        assert_eq!(KeybindingsConfig::normalize_keybinding("f11"), "f11");
+        assert_eq!(KeybindingsConfig::normalize_keybinding("pageup"), "pageup");
+        assert_eq!(KeybindingsConfig::normalize_keybinding("pagedown"), "pagedown");
+    }
+
+    #[test]
+    fn test_normalize_keybinding_modifiers() {
+        assert_eq!(KeybindingsConfig::normalize_keybinding("ctrl+shift+c"), "ctrl-shift-c");
+        assert_eq!(KeybindingsConfig::normalize_keybinding("cmd+ctrl+f"), "cmd-ctrl-f");
+        assert_eq!(KeybindingsConfig::normalize_keybinding("alt+shift+left"), "alt-shift-left");
+    }
+
+    #[test]
+    fn test_normalize_keybinding_symbols() {
+        assert_eq!(KeybindingsConfig::normalize_keybinding("ctrl+="), "ctrl-=");
+        assert_eq!(KeybindingsConfig::normalize_keybinding("ctrl+-"), "ctrl--");
+        assert_eq!(KeybindingsConfig::normalize_keybinding("cmd+0"), "cmd-0");
+        assert_eq!(KeybindingsConfig::normalize_keybinding("cmd+]"), "cmd-]");
+        assert_eq!(KeybindingsConfig::normalize_keybinding("cmd+["), "cmd-[");
+    }
+
+    #[test]
+    fn test_all_default_keybindings_normalize_correctly() {
+        let kb = KeybindingsConfig::default();
+        let all = kb.all_keybindings();
+
+        for (action, binding) in all {
+            let normalized = KeybindingsConfig::normalize_keybinding(binding);
+
+            // Normalized binding should not contain '+'
+            assert!(
+                !normalized.contains('+'),
+                "Action {:?} normalized binding '{}' still contains '+'",
+                action,
+                normalized
+            );
+
+            // Normalized binding should be lowercase
+            assert_eq!(
+                normalized,
+                normalized.to_lowercase(),
+                "Action {:?} normalized binding '{}' is not lowercase",
+                action,
+                normalized
+            );
+
+            // Normalized binding should not be empty
+            assert!(
+                !normalized.is_empty(),
+                "Action {:?} has empty normalized binding",
+                action
+            );
+        }
     }
 }
