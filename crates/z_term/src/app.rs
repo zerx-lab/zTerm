@@ -2,6 +2,7 @@
 
 use crate::window::MainWindow;
 use crate::workspace::Workspace;
+use zterm_common::AppSettings;
 use zterm_terminal::TerminalSize;
 use gpui::*;
 use gpui_component::theme::Theme;
@@ -15,6 +16,7 @@ actions!(
         CloseActiveTab,
         NextTab,
         PrevTab,
+        FocusTerminal,
         SplitHorizontal,
         SplitVertical,
         ToggleFullscreen,
@@ -39,10 +41,46 @@ impl ZTermApp {
         // Set up global key bindings
         Self::setup_keybindings(cx);
 
+        // Watch for config changes and rebind keys
+        Self::watch_config_changes(cx);
+
         // Handle window close - quit when last window is closed
         cx.on_window_closed(|cx| {
             if cx.windows().is_empty() {
                 cx.quit();
+            }
+        })
+        .detach();
+    }
+
+    /// Watch for configuration changes and rebind keybindings when needed
+    fn watch_config_changes(cx: &mut App) {
+        // Track the last seen change counter
+        let mut last_counter = cx
+            .try_global::<AppSettings>()
+            .map(|s| s.change_counter)
+            .unwrap_or(0);
+
+        cx.spawn(async move |cx| {
+            loop {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(200))
+                    .await;
+
+                // Check if config has changed
+                let current_counter = cx.update(|cx| {
+                    cx.try_global::<AppSettings>()
+                        .map(|s| s.change_counter)
+                        .unwrap_or(0)
+                });
+
+                if current_counter != last_counter {
+                    last_counter = current_counter;
+                    tracing::info!("Config changed (counter: {}), rebinding keybindings...", current_counter);
+                    cx.update(|cx| {
+                        Self::setup_keybindings(cx);
+                    });
+                }
             }
         })
         .detach();
@@ -59,9 +97,18 @@ impl ZTermApp {
         });
     }
 
-    /// Set up global key bindings
+    /// Convert config keybinding format ("ctrl+t") to GPUI format ("ctrl-t")
+    fn normalize_keybinding(key: &str) -> String {
+        key.replace('+', "-").to_lowercase()
+    }
+
+    /// Set up global key bindings from configuration
     fn setup_keybindings(cx: &mut App) {
-        cx.bind_keys([
+        let config = zterm_common::Config::global();
+        let kb = &config.keybindings;
+
+        // System keybindings (not configurable)
+        let mut bindings = vec![
             #[cfg(target_os = "macos")]
             KeyBinding::new("cmd-q", Quit, None),
             #[cfg(not(target_os = "macos"))]
@@ -70,17 +117,31 @@ impl ZTermApp {
             KeyBinding::new("cmd-n", NewWindow, None),
             #[cfg(not(target_os = "macos"))]
             KeyBinding::new("ctrl-shift-n", NewWindow, None),
-            // New tab
-            #[cfg(target_os = "macos")]
-            KeyBinding::new("cmd-t", NewTab, Some("MainWindow")),
-            #[cfg(not(target_os = "macos"))]
-            KeyBinding::new("ctrl-t", NewTab, Some("MainWindow")),
-            // Close active tab
-            #[cfg(target_os = "macos")]
-            KeyBinding::new("cmd-w", CloseActiveTab, Some("MainWindow")),
-            #[cfg(not(target_os = "macos"))]
-            KeyBinding::new("ctrl-w", CloseActiveTab, Some("MainWindow")),
-        ]);
+        ];
+
+        // Configurable keybindings from config file
+        bindings.push(KeyBinding::new(
+            &Self::normalize_keybinding(&kb.new_tab),
+            NewTab,
+            Some("MainWindow"),
+        ));
+        bindings.push(KeyBinding::new(
+            &Self::normalize_keybinding(&kb.close_tab),
+            CloseActiveTab,
+            Some("MainWindow"),
+        ));
+        bindings.push(KeyBinding::new(
+            &Self::normalize_keybinding(&kb.next_tab),
+            NextTab,
+            Some("MainWindow"),
+        ));
+        bindings.push(KeyBinding::new(
+            &Self::normalize_keybinding(&kb.prev_tab),
+            PrevTab,
+            Some("MainWindow"),
+        ));
+
+        cx.bind_keys(bindings);
     }
 
     /// Open the main application window

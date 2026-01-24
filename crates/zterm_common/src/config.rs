@@ -64,9 +64,6 @@ pub struct TerminalConfig {
 
     /// Font size in points
     pub font_size: f32,
-
-    /// Line height multiplier
-    pub line_height: f32,
 }
 
 /// UI configuration
@@ -97,12 +94,6 @@ pub struct UiConfig {
 /// Keybindings configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeybindingsConfig {
-    /// Copy shortcut
-    pub copy: String,
-
-    /// Paste shortcut
-    pub paste: String,
-
     /// New tab shortcut
     pub new_tab: String,
 
@@ -114,18 +105,6 @@ pub struct KeybindingsConfig {
 
     /// Previous tab shortcut
     pub prev_tab: String,
-
-    /// Split horizontal shortcut
-    pub split_horizontal: String,
-
-    /// Split vertical shortcut
-    pub split_vertical: String,
-
-    /// Search shortcut
-    pub search: String,
-
-    /// Command palette shortcut
-    pub command_palette: String,
 }
 
 impl Default for Config {
@@ -151,7 +130,6 @@ impl Default for TerminalConfig {
             cursor_blink: true,
             font_family: "JetBrainsMono Nerd Font Mono".to_string(),
             font_size: 14.0,
-            line_height: 1.2,
         }
     }
 }
@@ -172,23 +150,21 @@ impl Default for UiConfig {
 
 impl Default for KeybindingsConfig {
     fn default() -> Self {
-        let modifier = if cfg!(target_os = "macos") {
-            "cmd"
+        if cfg!(target_os = "macos") {
+            Self {
+                new_tab: "cmd+t".to_string(),
+                close_tab: "cmd+w".to_string(),
+                next_tab: "cmd+shift+]".to_string(),
+                prev_tab: "cmd+shift+[".to_string(),
+            }
         } else {
-            "ctrl"
-        };
-
-        Self {
-            copy: format!("{modifier}+c"),
-            paste: format!("{modifier}+v"),
-            new_tab: format!("{modifier}+t"),
-            close_tab: format!("{modifier}+w"),
-            next_tab: format!("{modifier}+tab"),
-            prev_tab: format!("{modifier}+shift+tab"),
-            split_horizontal: format!("{modifier}+d"),
-            split_vertical: format!("{modifier}+shift+d"),
-            search: format!("{modifier}+f"),
-            command_palette: format!("{modifier}+shift+p"),
+            Self {
+                new_tab: "ctrl+t".to_string(),
+                close_tab: "ctrl+w".to_string(),
+                // Use alt+right/left as they work reliably across systems
+                next_tab: "alt+right".to_string(),
+                prev_tab: "alt+left".to_string(),
+            }
         }
     }
 }
@@ -583,8 +559,8 @@ mod tests {
         assert_eq!(config.ui.tab_bar_position, "top"); // Default
 
         // Keybindings section should be filled with defaults
-        assert!(!config.keybindings.copy.is_empty());
-        assert!(!config.keybindings.paste.is_empty());
+        assert!(!config.keybindings.new_tab.is_empty());
+        assert!(!config.keybindings.close_tab.is_empty());
     }
 
     #[test]

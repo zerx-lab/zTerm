@@ -133,6 +133,12 @@ impl TerminalView {
     /// Handle settings changes (hot-reload)
     fn on_settings_changed(&mut self, cx: &mut Context<Self>) {
         let config = AppSettings::global_config(cx);
+
+        // Only update if config actually changed
+        if self.theme.matches_config(&config) {
+            return;
+        }
+
         self.theme.update_from_config(&config);
 
         // Clear cached cell width so it gets remeasured with new font

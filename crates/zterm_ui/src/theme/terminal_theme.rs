@@ -207,6 +207,8 @@ impl TerminalTheme {
     ///
     /// This loads the base theme based on the config's theme name,
     /// then applies font settings from the config.
+    /// Note: line_height is calculated automatically based on font metrics,
+    /// using a fixed multiplier (1.4) for optimal terminal display.
     pub fn from_config(config: &Config) -> Self {
         // Get base theme from config
         let mut theme = match config.ui.theme.as_str() {
@@ -218,16 +220,38 @@ impl TerminalTheme {
         };
 
         // Apply terminal-specific settings from config
+        // line_height uses fixed value from base theme (calculated based on font metrics)
         theme.font_family = config.terminal.font_family.clone().into();
         theme.font_size = config.terminal.font_size;
-        theme.line_height = config.terminal.line_height;
 
         theme
+    }
+
+    /// Check if the current theme matches the given configuration
+    ///
+    /// This is used to avoid unnecessary updates when configuration hasn't changed.
+    pub fn matches_config(&self, config: &Config) -> bool {
+        self.font_family.as_ref() == config.terminal.font_family
+            && (self.font_size - config.terminal.font_size).abs() < f32::EPSILON
+            && self.matches_theme_colors(&config.ui.theme)
+    }
+
+    /// Check if the current colors match the named theme
+    fn matches_theme_colors(&self, theme_name: &str) -> bool {
+        let expected = match theme_name {
+            "light" => Self::light(),
+            "dracula" => Self::dracula(),
+            "one_dark" => Self::one_dark(),
+            "nord" => Self::nord(),
+            _ => Self::dark(),
+        };
+        self.background == expected.background && self.foreground == expected.foreground
     }
 
     /// Update theme from configuration (hot-reload)
     ///
     /// This updates the theme in-place when the configuration changes.
+    /// Note: line_height is not updated from config, it uses the base theme's value.
     pub fn update_from_config(&mut self, config: &Config) {
         // Get base theme colors from config
         let base_theme = match config.ui.theme.as_str() {
@@ -238,17 +262,17 @@ impl TerminalTheme {
             _ => Self::dark(),
         };
 
-        // Update colors from base theme
+        // Update colors and line_height from base theme
         self.background = base_theme.background;
         self.foreground = base_theme.foreground;
         self.cursor_color = base_theme.cursor_color;
         self.selection_background = base_theme.selection_background;
         self.ansi_colors = base_theme.ansi_colors;
+        self.line_height = base_theme.line_height;
 
         // Update font settings from config
         self.font_family = config.terminal.font_family.clone().into();
         self.font_size = config.terminal.font_size;
-        self.line_height = config.terminal.line_height;
     }
 }
 

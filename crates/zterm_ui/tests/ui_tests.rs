@@ -251,13 +251,13 @@ mod terminal_theme_config_tests {
         let mut config = Config::default();
         config.terminal.font_family = "Custom Font".to_string();
         config.terminal.font_size = 20.0;
-        config.terminal.line_height = 1.8;
 
         let theme = TerminalTheme::from_config(&config);
 
         assert_eq!(theme.font_family.as_ref(), "Custom Font");
         assert_eq!(theme.font_size, 20.0);
-        assert_eq!(theme.line_height, 1.8);
+        // line_height is fixed from base theme, not from config
+        assert_eq!(theme.line_height, 1.4);
     }
 
     #[test]
@@ -334,14 +334,16 @@ mod terminal_theme_config_tests {
     }
 
     #[test]
-    fn test_line_height_updates() {
+    fn test_line_height_uses_base_theme() {
+        // line_height is determined by base theme, not config
         let mut theme = TerminalTheme::dark();
         assert_eq!(theme.line_height, 1.4);
 
-        let mut config = Config::default();
-        config.terminal.line_height = 2.0;
+        // Switching to dracula should keep line_height at 1.4 (base theme value)
+        let config = create_custom_config("dracula", 14.0, "Mono");
         theme.update_from_config(&config);
 
-        assert_eq!(theme.line_height, 2.0);
+        // line_height should remain the base theme value
+        assert_eq!(theme.line_height, 1.4);
     }
 }

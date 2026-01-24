@@ -1,6 +1,6 @@
 //! Main application window
 
-use crate::app::{CloseActiveTab, NewTab, NextTab, PrevTab, Quit};
+use crate::app::{CloseActiveTab, FocusTerminal, NewTab, NextTab, PrevTab, Quit};
 use crate::workspace::Workspace;
 use zterm_ui::{TabInfo, TitleBar, TitleBarEvent};
 use gpui::*;
@@ -41,12 +41,16 @@ impl MainWindow {
                 self.workspace.update(cx, |ws, cx| {
                     ws.new_tab(cx);
                 });
+                // Focus the new terminal
+                self.focus_active_terminal_deferred(cx);
             }
             TitleBarEvent::SelectTab(tab_index) => {
                 let tab_index = *tab_index;
                 self.workspace.update(cx, |ws, cx| {
                     ws.set_active_tab(tab_index, cx);
                 });
+                // Focus the selected terminal
+                self.focus_active_terminal_deferred(cx);
             }
             TitleBarEvent::CloseTab(tab_index) => {
                 let tab_index = *tab_index;
@@ -59,9 +63,30 @@ impl MainWindow {
                     cx.defer(|cx| {
                         cx.dispatch_action(&Quit);
                     });
+                } else {
+                    // Focus the new active terminal
+                    self.focus_active_terminal_deferred(cx);
                 }
             }
         }
+    }
+
+    /// Focus the active terminal view (deferred version for use without Window)
+    fn focus_active_terminal_deferred(&self, cx: &mut Context<Self>) {
+        // Dispatch FocusTerminal action to focus the terminal
+        // This allows us to get the Window parameter in the action handler
+        cx.defer(|cx| {
+            cx.dispatch_action(&FocusTerminal);
+        });
+    }
+
+    fn handle_focus_terminal(
+        &mut self,
+        _: &FocusTerminal,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.focus_active_terminal(window, cx);
     }
 
     /// Focus the active terminal view
@@ -100,16 +125,20 @@ impl MainWindow {
         }
     }
 
-    fn handle_next_tab(&mut self, _: &NextTab, _window: &mut Window, cx: &mut Context<Self>) {
+    fn handle_next_tab(&mut self, _: &NextTab, window: &mut Window, cx: &mut Context<Self>) {
         self.workspace.update(cx, |ws, cx| {
             ws.next_tab(cx);
         });
+        // Focus the new active terminal
+        self.focus_active_terminal(window, cx);
     }
 
-    fn handle_prev_tab(&mut self, _: &PrevTab, _window: &mut Window, cx: &mut Context<Self>) {
+    fn handle_prev_tab(&mut self, _: &PrevTab, window: &mut Window, cx: &mut Context<Self>) {
         self.workspace.update(cx, |ws, cx| {
             ws.prev_tab(cx);
         });
+        // Focus the new active terminal
+        self.focus_active_terminal(window, cx);
     }
 }
 
@@ -166,6 +195,7 @@ impl Render for MainWindow {
             .on_action(cx.listener(Self::handle_close_active_tab))
             .on_action(cx.listener(Self::handle_next_tab))
             .on_action(cx.listener(Self::handle_prev_tab))
+            .on_action(cx.listener(Self::handle_focus_terminal))
             // Title bar with integrated tabs (like Warp Terminal)
             .child(self.title_bar.clone())
             // Terminal content

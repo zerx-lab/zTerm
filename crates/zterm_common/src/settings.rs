@@ -13,7 +13,7 @@ use std::sync::Arc;
 use tracing::{error, info, warn};
 
 /// Message sent from file watcher to main thread
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SettingsMessage {
     /// Configuration file has changed
     ConfigChanged,
@@ -34,6 +34,9 @@ pub struct AppSettings {
     /// Receiver for settings messages from watcher thread
     #[allow(dead_code)]
     message_rx: Option<Receiver<SettingsMessage>>,
+
+    /// Config change counter - increments each time config is reloaded
+    pub change_counter: u64,
 }
 
 impl Global for AppSettings {}
@@ -45,6 +48,7 @@ impl AppSettings {
             config: Arc::new(RwLock::new(Config::default())),
             watcher: None,
             message_rx: None,
+            change_counter: 0,
         }
     }
 
@@ -227,8 +231,12 @@ impl AppSettings {
                 });
 
                 if should_notify {
-                    // The update_global above already notifies observers
                     info!("Config change processed on main thread");
+                    // Increment the change counter to signal config update
+                    cx.update_global::<AppSettings, _>(|settings, _cx| {
+                        settings.change_counter += 1;
+                        info!("Config change counter: {}", settings.change_counter);
+                    });
                 }
             }
         })
@@ -341,7 +349,6 @@ mod tests {
 
         assert_eq!(config.terminal.font_family, "JetBrainsMono Nerd Font Mono");
         assert_eq!(config.terminal.font_size, 14.0);
-        assert_eq!(config.terminal.line_height, 1.2);
         assert!(config.terminal.cursor_blink);
         assert_eq!(config.terminal.cursor_style, "block");
     }
@@ -364,7 +371,6 @@ mod tests {
         // Modify terminal settings
         config.terminal.font_size = 16.0;
         config.terminal.font_family = "Consolas".to_string();
-        config.terminal.line_height = 1.5;
 
         // Modify UI settings
         config.ui.theme = "nord".to_string();
@@ -373,7 +379,6 @@ mod tests {
         // Verify modifications
         assert_eq!(config.terminal.font_size, 16.0);
         assert_eq!(config.terminal.font_family, "Consolas");
-        assert_eq!(config.terminal.line_height, 1.5);
         assert_eq!(config.ui.theme, "nord");
         assert_eq!(config.ui.opacity, 0.95);
     }
