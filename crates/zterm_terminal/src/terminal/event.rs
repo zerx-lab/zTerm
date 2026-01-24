@@ -1,5 +1,7 @@
 //! Terminal events
 
+use crate::shell_integration::ShellEvent;
+
 /// Events emitted by the terminal
 #[derive(Debug, Clone)]
 pub enum TerminalEvent {
@@ -26,4 +28,7 @@ pub enum TerminalEvent {
 
     /// Error occurred
     Error(String),
+
+    /// Shell integration event
+    ShellIntegration(ShellEvent),
 }

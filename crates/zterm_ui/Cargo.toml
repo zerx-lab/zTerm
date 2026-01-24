@@ -40,3 +40,7 @@ harness = false
 [[bench]]
 name = "title_bar_bench"
 harness = false
+
+[[bench]]
+name = "shell_integration_ui_bench"
+harness = false
