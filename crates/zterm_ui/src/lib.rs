@@ -4,6 +4,14 @@
 //! and gpui-component library.
 
 #![recursion_limit = "256"]
+#![allow(clippy::type_complexity)]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::manual_clamp)]
+#![allow(clippy::field_reassign_with_default)]
+#![allow(clippy::useless_conversion)]
+#![allow(clippy::derivable_impls)]
+#![allow(clippy::redundant_closure)]
+#![allow(clippy::clone_on_copy)]
 
 pub mod components;
 pub mod elements;

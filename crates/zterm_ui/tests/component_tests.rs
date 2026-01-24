@@ -1,4 +1,6 @@
 //! Comprehensive UI component tests for zterm_ui
+#![allow(clippy::redundant_closure)]
+#![allow(clippy::clone_on_copy)]
 //!
 //! These tests verify the behavior of all UI components including:
 //! - TerminalTabBar

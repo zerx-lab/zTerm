@@ -1,4 +1,6 @@
 //! Comprehensive unit tests for title_bar component
+#![allow(clippy::redundant_closure)]
+#![allow(clippy::clone_on_copy)]
 //!
 //! This module provides 100% test coverage for all public and testable
 //! components of the title_bar module.

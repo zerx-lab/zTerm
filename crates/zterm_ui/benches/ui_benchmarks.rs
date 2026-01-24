@@ -1,4 +1,6 @@
 //! Criterion-based benchmarks for zterm_ui
+#![allow(clippy::redundant_closure)]
+#![allow(clippy::clone_on_copy)]
 //!
 //! These benchmarks provide statistically accurate performance measurements using Criterion.
 //! Following Zed editor's benchmarking approach with:
