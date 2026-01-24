@@ -7,6 +7,7 @@ use crate::app::{
 };
 use crate::workspace::Workspace;
 use zterm_ui::{TabInfo, TitleBar, TitleBarEvent};
+use axon_ui::ThemeContext;
 use gpui::*;
 
 /// The main application window
@@ -278,6 +279,13 @@ impl MainWindow {
 
 impl Render for MainWindow {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Get theme colors
+        let theme = cx.current_theme();
+        let colors = &theme.colors;
+        let statusbar_bg = colors.statusbar_background.to_rgb();
+        let border_color = colors.border.to_rgb();
+        let text_muted = colors.text_muted.to_rgb();
+
         // Get tab information from workspace
         let (tabs, active_tab_index, tab_count, working_dir) = {
             let workspace = self.workspace.read(cx);
@@ -372,11 +380,11 @@ impl Render for MainWindow {
                     .items_center()
                     .h(px(24.0))
                     .px_2()
-                    .bg(rgb(0x252525))
+                    .bg(statusbar_bg)
                     .border_t_1()
-                    .border_color(rgb(0x333333))
+                    .border_color(border_color)
                     .text_xs()
-                    .text_color(rgb(0x888888))
+                    .text_color(text_muted)
                     .child(div().flex_1().child(working_dir))
                     .child(div().child(format!("Tab {}/{}", active_tab_index + 1, tab_count))),
             )

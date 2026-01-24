@@ -16,6 +16,7 @@ zterm_common.workspace = true
 zterm_terminal.workspace = true
 zterm_ui.workspace = true
 zterm_input.workspace = true
+axon_ui.workspace = true
 
 # GPUI
 gpui.workspace = true

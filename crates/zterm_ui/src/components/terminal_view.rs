@@ -119,9 +119,9 @@ impl TerminalView {
     pub fn new(terminal: Entity<Terminal>, cx: &mut Context<Self>) -> Self {
         let focus_handle = cx.focus_handle();
 
-        // Load theme from configuration
+        // Load theme from axon_ui theme system
         let config = AppSettings::global_config(cx);
-        let theme = TerminalTheme::from_config(&config);
+        let theme = TerminalTheme::from_axon_theme(cx, &config);
 
         // Subscribe to terminal events
         cx.subscribe(&terminal, Self::on_terminal_event).detach();
@@ -155,17 +155,25 @@ impl TerminalView {
     fn on_settings_changed(&mut self, cx: &mut Context<Self>) {
         let config = AppSettings::global_config(cx);
 
-        // Only update if config actually changed
-        if self.theme.matches_config(&config) {
+        // Create new theme from axon_ui theme system
+        let new_theme = TerminalTheme::from_axon_theme(cx, &config);
+
+        // Only update if theme actually changed (compare colors and font)
+        let theme_changed = self.theme.background != new_theme.background
+            || self.theme.foreground != new_theme.foreground
+            || self.theme.font_family != new_theme.font_family
+            || (self.theme.font_size - new_theme.font_size).abs() > f32::EPSILON;
+
+        if !theme_changed {
             return;
         }
 
-        self.theme.update_from_config(&config);
+        self.theme = new_theme;
 
         // Clear cached cell width so it gets remeasured with new font
         self.cell_width = None;
 
-        tracing::info!("Terminal theme updated from config");
+        tracing::info!("Terminal theme updated from axon_ui theme system");
         cx.notify();
     }
 

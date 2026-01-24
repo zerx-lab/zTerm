@@ -3,6 +3,7 @@
 //! This implementation is based on Zed's platform_title_bar pattern for reliable
 //! cross-platform window dragging support.
 
+use axon_ui::ThemeContext;
 use gpui::{prelude::*, *};
 use gpui_component::h_flex;
 use std::path::Path;
@@ -190,6 +191,20 @@ impl Render for TitleBar {
         let is_fullscreen = window.is_fullscreen();
         let height = Self::height();
 
+        // 获取主题颜色
+        let theme = cx.current_theme();
+        let colors = &theme.colors;
+        let titlebar_bg = colors.titlebar_background.to_rgb();
+        let border_color = colors.border.to_rgb();
+        let tab_active_bg = colors.tab_active_background.to_rgb();
+        let tab_inactive_bg = colors.tab_inactive_background.to_rgb();
+        let tab_hover_bg = colors.tab_hover_background.to_rgb();
+        let tab_active_indicator = colors.tab_active_indicator.to_rgb();
+        let text_color = colors.text.to_rgb();
+        let text_muted = colors.text_muted.to_rgb();
+        let button_hover_bg = colors.button_hover_background.to_rgb();
+        let button_active_bg = colors.button_active_background.to_rgb();
+
         // Main title bar container - follows Zed's h_flex() pattern exactly
         // window_control_area(Drag) tells Windows to return HTCAPTION for WM_NCHITTEST
         div()
@@ -200,9 +215,9 @@ impl Render for TitleBar {
             .window_control_area(WindowControlArea::Drag)
             .w_full()
             .h(height)
-            .bg(rgb(0x1e1e1e))
+            .bg(titlebar_bg)
             .border_b_1()
-            .border_color(rgb(0x333333))
+            .border_color(border_color)
             .content_stretch()
             // Mouse event handlers for non-Windows platforms
             .on_mouse_down_out(
@@ -261,22 +276,18 @@ impl Render for TitleBar {
                                 let is_active = tab.active;
                                 let display_dir = tab.display_directory();
 
-                                // Colors inspired by modern terminals (Warp, iTerm2, Windows Terminal)
+                                // 使用主题颜色
                                 let bg_color = if is_active {
-                                    rgb(0x2d2d2d)
+                                    tab_active_bg
                                 } else {
-                                    rgb(0x252525)
+                                    tab_inactive_bg
                                 };
-                                let text_color = if is_active {
-                                    rgb(0xe8e8e8)
+                                let tab_text_color = if is_active {
+                                    text_color
                                 } else {
-                                    rgb(0x808080)
+                                    text_muted
                                 };
-                                let hover_bg = if is_active {
-                                    rgb(0x363636)
-                                } else {
-                                    rgb(0x2d2d2d)
-                                };
+                                let hover_bg = tab_hover_bg;
 
                                 div()
                                     // Use NamedInteger for ~10x faster ElementId creation
@@ -294,10 +305,10 @@ impl Render for TitleBar {
                                     .bg(bg_color)
                                     // Active tab indicator - subtle bottom border
                                     .when(is_active, |el| {
-                                        el.border_b_2().border_color(rgb(0x4a9eff))
+                                        el.border_b_2().border_color(tab_active_indicator)
                                     })
                                     .when(!is_active, |el| {
-                                        el.border_b_1().border_color(rgb(0x3a3a3a))
+                                        el.border_b_1().border_color(border_color)
                                     })
                                     .hover(|style| style.bg(hover_bg))
                                     .cursor_pointer()
@@ -317,7 +328,7 @@ impl Render for TitleBar {
                                         div()
                                             .flex_1()
                                             .text_sm()
-                                            .text_color(text_color)
+                                            .text_color(tab_text_color)
                                             .truncate()
                                             .overflow_hidden()
                                             .child(display_dir),
@@ -335,11 +346,11 @@ impl Render for TitleBar {
                                             .ml(px(6.0))
                                             .rounded(px(4.0))
                                             .text_xs()
-                                            .text_color(rgb(0x606060))
+                                            .text_color(text_muted)
                                             .hover(|style| {
-                                                style.bg(rgb(0x4a4a4a)).text_color(rgb(0xd0d0d0))
+                                                style.bg(button_hover_bg).text_color(text_color)
                                             })
-                                            .active(|style| style.bg(rgb(0x5a5a5a)))
+                                            .active(|style| style.bg(button_active_bg))
                                             .on_mouse_down(
                                                 MouseButton::Left,
                                                 |_: &MouseDownEvent,
@@ -370,9 +381,9 @@ impl Render for TitleBar {
                                     .h(px(28.0))
                                     .ml(px(4.0))
                                     .rounded(px(6.0))
-                                    .text_color(rgb(0x606060))
-                                    .hover(|style| style.bg(rgb(0x2d2d2d)).text_color(rgb(0xa0a0a0)))
-                                    .active(|style| style.bg(rgb(0x3d3d3d)))
+                                    .text_color(text_muted)
+                                    .hover(|style| style.bg(button_hover_bg).text_color(text_color))
+                                    .active(|style| style.bg(button_active_bg))
                                     .cursor_pointer()
                                     .block_mouse_except_scroll()
                                     .on_mouse_down(
@@ -506,16 +517,31 @@ impl WindowsCaptionButton {
 }
 
 impl RenderOnce for WindowsCaptionButton {
-    fn render(self, _: &mut Window, _cx: &mut App) -> impl IntoElement {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        // 获取主题颜色
+        let theme = cx.current_theme();
+        let colors = &theme.colors;
+
         let (hover_bg, hover_fg, active_bg, active_fg) = match self {
-            Self::Close => (
-                rgb(0xe81123),
-                rgb(0xffffff),
-                rgba(0xe8112399),
-                rgba(0xffffffcc),
-            ),
-            _ => (rgb(0x3d3d3d), rgb(0xcccccc), rgb(0x4d4d4d), rgb(0xcccccc)),
+            Self::Close => {
+                // 关闭按钮使用危险颜色
+                let danger_bg = colors.danger.to_rgb();
+                let danger_fg = colors.danger_foreground.to_rgb();
+                let danger_active = colors.danger.opacity(0.6).to_rgb();
+                let danger_active_fg = colors.danger_foreground.opacity(0.8).to_rgb();
+                (danger_bg, danger_fg, danger_active, danger_active_fg)
+            }
+            _ => {
+                // 最小化/最大化按钮使用主题颜色
+                let hover_bg = colors.button_hover_background.to_rgb();
+                let hover_fg = colors.icon.to_rgb();
+                let active_bg = colors.button_active_background.to_rgb();
+                let active_fg = colors.icon.to_rgb();
+                (hover_bg, hover_fg, active_bg, active_fg)
+            }
         };
+
+        let icon_color = colors.icon_muted.to_rgb();
 
         div()
             .id(self.id())
@@ -529,6 +555,7 @@ impl RenderOnce for WindowsCaptionButton {
             .w(px(46.0))
             .h_full()
             .text_size(px(10.0))
+            .text_color(icon_color)
             .hover(move |style: StyleRefinement| style.bg(hover_bg).text_color(hover_fg))
             .active(move |style: StyleRefinement| style.bg(active_bg).text_color(active_fg))
             // CRITICAL: Register this button's control area for Windows WM_NCHITTEST
@@ -599,12 +626,25 @@ impl LinuxCaptionButton {
 }
 
 impl RenderOnce for LinuxCaptionButton {
-    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let action = self;
+
+        // 获取主题颜色
+        let theme = cx.current_theme();
+        let colors = &theme.colors;
+
         let (hover_bg, hover_fg) = match self {
-            Self::Close => (rgb(0xe81123), rgb(0xffffff)),
-            _ => (rgb(0x3d3d3d), rgb(0xcccccc)),
+            Self::Close => {
+                // 关闭按钮使用危险颜色
+                (colors.danger.to_rgb(), colors.danger_foreground.to_rgb())
+            }
+            _ => {
+                // 最小化/最大化按钮使用主题颜色
+                (colors.button_hover_background.to_rgb(), colors.icon.to_rgb())
+            }
         };
+
+        let icon_color = colors.icon_muted.to_rgb();
 
         div()
             .id(self.id())
@@ -614,7 +654,7 @@ impl RenderOnce for LinuxCaptionButton {
             .w(px(36.0))
             .h_full()
             .text_sm()
-            .text_color(rgb(0xcccccc))
+            .text_color(icon_color)
             // Window control buttons MUST use occlude() to block ALL mouse events
             .occlude()
             .hover(move |style: StyleRefinement| style.bg(hover_bg).text_color(hover_fg))

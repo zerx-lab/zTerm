@@ -1,0 +1,12 @@
+[package]
+name = "axon_ui"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+gpui.workspace = true
+serde = { version = "1.0", features = ["derive"] }
+tracing.workspace = true
+
+[dev-dependencies]

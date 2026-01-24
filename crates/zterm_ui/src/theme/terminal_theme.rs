@@ -2,6 +2,7 @@
 
 use gpui::*;
 use zterm_common::Config;
+use axon_ui::ThemeContext;
 
 /// Theme configuration for the terminal
 #[derive(Clone)]
@@ -199,6 +200,48 @@ impl TerminalTheme {
             ],
             font_family: "JetBrainsMono Nerd Font Mono".into(),
             font_size: 14.0,
+            line_height: 1.4,
+        }
+    }
+
+    /// Helper to convert Hsla to Rgba
+    fn hsla_to_rgba(hsla: gpui::Hsla) -> Rgba {
+        hsla.to_rgb()
+    }
+
+    /// Create a theme from axon_ui theme system
+    pub fn from_axon_theme(cx: &App, config: &Config) -> Self {
+        let theme = cx.current_theme();
+        let colors = &theme.colors;
+        let terminal = &colors.terminal;
+
+        // Convert ANSI colors
+        let mut ansi_colors = [rgba(0); 16];
+        ansi_colors[0] = Self::hsla_to_rgba(terminal.ansi.black);
+        ansi_colors[1] = Self::hsla_to_rgba(terminal.ansi.red);
+        ansi_colors[2] = Self::hsla_to_rgba(terminal.ansi.green);
+        ansi_colors[3] = Self::hsla_to_rgba(terminal.ansi.yellow);
+        ansi_colors[4] = Self::hsla_to_rgba(terminal.ansi.blue);
+        ansi_colors[5] = Self::hsla_to_rgba(terminal.ansi.magenta);
+        ansi_colors[6] = Self::hsla_to_rgba(terminal.ansi.cyan);
+        ansi_colors[7] = Self::hsla_to_rgba(terminal.ansi.white);
+        ansi_colors[8] = Self::hsla_to_rgba(terminal.ansi.bright_black);
+        ansi_colors[9] = Self::hsla_to_rgba(terminal.ansi.bright_red);
+        ansi_colors[10] = Self::hsla_to_rgba(terminal.ansi.bright_green);
+        ansi_colors[11] = Self::hsla_to_rgba(terminal.ansi.bright_yellow);
+        ansi_colors[12] = Self::hsla_to_rgba(terminal.ansi.bright_blue);
+        ansi_colors[13] = Self::hsla_to_rgba(terminal.ansi.bright_magenta);
+        ansi_colors[14] = Self::hsla_to_rgba(terminal.ansi.bright_cyan);
+        ansi_colors[15] = Self::hsla_to_rgba(terminal.ansi.bright_white);
+
+        Self {
+            background: Self::hsla_to_rgba(terminal.background),
+            foreground: Self::hsla_to_rgba(terminal.foreground),
+            cursor_color: Self::hsla_to_rgba(terminal.cursor),
+            selection_background: Self::hsla_to_rgba(terminal.selection_background),
+            ansi_colors,
+            font_family: config.terminal.font_family.clone().into(),
+            font_size: config.terminal.font_size,
             line_height: 1.4,
         }
     }

@@ -1,5 +1,6 @@
 //! Terminal tab bar component
 
+use axon_ui::ThemeContext;
 use crate::components::title_bar::TabInfo;
 use gpui::prelude::*;
 use gpui::*;
@@ -40,9 +41,21 @@ impl Default for TerminalTabBar {
 }
 
 impl RenderOnce for TerminalTabBar {
-    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let tabs = self.tabs.clone();
         let scroll_handle = self.scroll_handle.clone();
+
+        // 获取主题颜色
+        let theme = cx.current_theme();
+        let colors = &theme.colors;
+        let tab_bar_bg = colors.tab_bar_background.to_rgb();
+        let border_color = colors.border.to_rgb();
+        let tab_active_bg = colors.tab_active_background.to_rgb();
+        let tab_inactive_bg = colors.tab_inactive_background.to_rgb();
+        let tab_hover_bg = colors.tab_hover_background.to_rgb();
+        let text_color = colors.text.to_rgb();
+        let text_muted = colors.text_muted.to_rgb();
+        let button_hover_bg = colors.button_hover_background.to_rgb();
 
         div()
             .id("tab-bar")
@@ -51,9 +64,9 @@ impl RenderOnce for TerminalTabBar {
             .items_center()
             .h(px(36.0))
             .w_full()
-            .bg(rgb(0x1e1e1e))
+            .bg(tab_bar_bg)
             .border_b_1()
-            .border_color(rgb(0x333333))
+            .border_color(border_color)
             // Scrollable tabs container
             .child(
                 div()
@@ -69,9 +82,14 @@ impl RenderOnce for TerminalTabBar {
                             .when_some(scroll_handle, |this, handle| this.track_scroll(&handle))
                             .children(tabs.into_iter().map(|tab| {
                                 let bg_color = if tab.active {
-                                    rgb(0x2d2d2d)
+                                    tab_active_bg
                                 } else {
-                                    rgb(0x1e1e1e)
+                                    tab_inactive_bg
+                                };
+                                let tab_text_color = if tab.active {
+                                    text_color
+                                } else {
+                                    text_muted
                                 };
 
                                 div()
@@ -84,7 +102,7 @@ impl RenderOnce for TerminalTabBar {
                                     .mx_px()
                                     .rounded_t_md()
                                     .bg(bg_color)
-                                    .hover(|style| style.bg(rgb(0x3d3d3d)))
+                                    .hover(|style| style.bg(tab_hover_bg))
                                     .cursor_pointer()
                                     // Min/Max width constraints - prevents tabs from being too wide or too narrow
                                     .min_w(px(80.0))
@@ -99,11 +117,7 @@ impl RenderOnce for TerminalTabBar {
                                             .child(
                                                 div()
                                                     .text_sm()
-                                                    .text_color(if tab.active {
-                                                        rgb(0xffffff)
-                                                    } else {
-                                                        rgb(0x888888)
-                                                    })
+                                                    .text_color(tab_text_color)
                                                     .truncate()
                                                     .child(tab.title),
                                             ),
@@ -124,9 +138,9 @@ impl RenderOnce for TerminalTabBar {
                     .ml_2()
                     .mr_2()
                     .rounded_md()
-                    .hover(|style| style.bg(rgb(0x3d3d3d)))
+                    .hover(|style| style.bg(button_hover_bg))
                     .cursor_pointer()
-                    .child(div().text_sm().text_color(rgb(0x888888)).child("+")),
+                    .child(div().text_sm().text_color(text_muted).child("+")),
             )
     }
 }
