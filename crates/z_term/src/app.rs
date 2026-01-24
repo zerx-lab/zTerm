@@ -59,6 +59,12 @@ impl ZTermApp {
         // Initialize theme (required for gpui_component)
         cx.set_global(Theme::default());
 
+        // Initialize our theme system
+        axon_ui::ThemeManager::init(cx);
+
+        // Load theme from config
+        Self::load_theme_from_config(cx);
+
         // Register actions
         Self::register_actions(cx);
 
@@ -77,13 +83,26 @@ impl ZTermApp {
         .detach();
     }
 
+    /// Load theme from configuration
+    fn load_theme_from_config(cx: &mut App) {
+        let config = zterm_common::Config::global();
+        let theme_name = &config.ui.theme;
+
+        tracing::info!("Loading theme from config: {}", theme_name);
+        if !axon_ui::ThemeManager::set_theme_by_name(theme_name, cx) {
+            tracing::warn!("Failed to load theme '{}', using default", theme_name);
+        }
+    }
+
     /// Watch for configuration changes and rebind keybindings when needed
     fn watch_config_changes(cx: &mut App) {
-        // Track the last seen change counter
+        // Track the last seen change counter and theme name
         let mut last_counter = cx
             .try_global::<AppSettings>()
             .map(|s| s.change_counter)
             .unwrap_or(0);
+
+        let mut last_theme = zterm_common::Config::global().ui.theme.clone();
 
         cx.spawn(async move |cx| {
             loop {
@@ -92,14 +111,26 @@ impl ZTermApp {
                     .await;
 
                 // Check if config has changed
-                let current_counter = cx.update(|cx| {
-                    cx.try_global::<AppSettings>()
+                let (current_counter, current_theme) = cx.update(|cx| {
+                    let counter = cx.try_global::<AppSettings>()
                         .map(|s| s.change_counter)
-                        .unwrap_or(0)
+                        .unwrap_or(0);
+                    let theme = zterm_common::Config::global().ui.theme.clone();
+                    (counter, theme)
                 });
 
                 if current_counter != last_counter {
                     last_counter = current_counter;
+
+                    // Check if theme changed
+                    if current_theme != last_theme {
+                        last_theme = current_theme.clone();
+                        tracing::info!("Theme changed to: {}", current_theme);
+                        cx.update(|cx| {
+                            Self::load_theme_from_config(cx);
+                        });
+                    }
+
                     tracing::info!("Config changed (counter: {}), rebinding keybindings...", current_counter);
                     cx.update(|cx| {
                         Self::setup_keybindings(cx);

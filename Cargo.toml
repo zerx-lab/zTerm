@@ -6,6 +6,7 @@ members = [
     "crates/zterm_ui",
     "crates/zterm_input",
     "crates/zterm_common",
+    "crates/axon_ui",
 ]
 
 [workspace.package]
@@ -23,6 +24,7 @@ zterm_common = { path = "crates/zterm_common" }
 zterm_terminal = { path = "crates/zterm_terminal" }
 zterm_ui = { path = "crates/zterm_ui" }
 zterm_input = { path = "crates/zterm_input" }
+axon_ui = { path = "crates/axon_ui" }
 
 # GPUI - 跟随 gpui-component 的 gpui 版本
 gpui = { git = "https://github.com/zed-industries/zed" }
