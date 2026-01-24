@@ -58,11 +58,13 @@ pub struct StyledRun {
     underline: bool,
 }
 
-/// Zone visual information for rendering shell integration gutter decorations
+/// Zone visual information for rendering shell integration decorations
 #[derive(Debug, Clone)]
 pub struct ZoneVisual {
-    /// Start line (relative to visible display) - where the gutter decoration appears
+    /// Start line (relative to visible display)
     pub start_line: i32,
+    /// End line (relative to visible display, None if still active)
+    pub end_line: Option<i32>,
     /// Exit code (None if still running)
     pub exit_code: Option<i32>,
     /// Whether this is the currently active zone
@@ -347,7 +349,7 @@ impl TerminalElement {
         runs
     }
 
-    /// Build zone visuals for shell integration gutter rendering
+    /// Build zone visuals for shell integration rendering
     fn build_zone_visuals(&self, content: &TerminalContent) -> Vec<ZoneVisual> {
         let mut visuals = Vec::new();
         let display_offset = content.display_offset as i32;
@@ -356,10 +358,15 @@ impl TerminalElement {
         for zone_info in &content.zones {
             // Convert absolute scrollback line to visual line
             let start_line = zone_info.start_line as i32 - history_size + display_offset;
+            let end_line = zone_info.end_line.map(|end| end as i32 - history_size + display_offset);
 
-            // Only render zones whose start line is visible on screen
+            // Only render zones that are at least partially visible
             let screen_lines = content.screen_lines as i32;
-            if start_line < 0 || start_line >= screen_lines {
+            if let Some(end) = end_line {
+                if end < 0 || start_line >= screen_lines {
+                    continue;
+                }
+            } else if start_line >= screen_lines {
                 continue;
             }
 
@@ -368,6 +375,7 @@ impl TerminalElement {
 
             visuals.push(ZoneVisual {
                 start_line,
+                end_line,
                 exit_code: zone_info.exit_code,
                 is_active,
             });
@@ -539,37 +547,48 @@ impl Element for TerminalElement {
         };
         window.handle_input(&self.focus, terminal_input_handler, cx);
 
-        // Paint zone gutter decorations (VS Code style)
-        let gutter_width = px(6.0);
-        let gutter_margin = px(2.0);
+        // Paint shell integration zones (VS Code style)
+        let gutter_width = px(4.0);
+        let gutter_margin_left = px(2.0);
+        let gutter_total_width = gutter_margin_left + gutter_width + px(4.0); // Total reserved space
 
         for zone in &layout.zones {
             let start_y = origin.y + layout.y_offset + layout.line_height * zone.start_line as f32;
+            let end_y = if let Some(end_line) = zone.end_line {
+                origin.y + layout.y_offset + layout.line_height * end_line as f32
+            } else {
+                bounds.bottom()
+            };
 
-            // Determine gutter color based on zone state
-            let gutter_color = if zone.is_active {
-                // Active zone: subtle blue
-                rgba(0x0078d480)
+            // Determine colors based on zone state
+            let (gutter_color, bg_color) = if zone.is_active {
+                // Active zone: blue
+                (rgba(0x0078d4_ff), rgba(0x0078d410))
             } else if let Some(exit_code) = zone.exit_code {
                 if exit_code == 0 {
                     // Success: green
-                    rgba(0x16825d_ff)
+                    (rgba(0x16825d_ff), rgba(0x16825d08))
                 } else {
                     // Failure: red
-                    rgba(0xf14c4c_ff)
+                    (rgba(0xf14c4c_ff), rgba(0xf14c4c10))
                 }
             } else {
                 // Running: yellow
-                rgba(0xcca700_ff)
+                (rgba(0xcca700_ff), rgba(0xcca70010))
             };
 
-            // Draw gutter decoration (small colored circle/square)
-            let gutter_x = origin.x + gutter_margin;
-            let gutter_y = start_y + (layout.line_height - gutter_width) / 2.0;
+            // Draw block background (subtle highlight)
+            let bg_bounds = Bounds::new(
+                point(origin.x + gutter_total_width, start_y),
+                size(bounds.size.width - gutter_total_width, end_y - start_y),
+            );
+            window.paint_quad(fill(bg_bounds, bg_color));
 
+            // Draw gutter decoration (vertical line with rounded cap)
+            let gutter_x = origin.x + gutter_margin_left;
             let gutter_bounds = Bounds::new(
-                point(gutter_x, gutter_y),
-                size(gutter_width, gutter_width),
+                point(gutter_x, start_y),
+                size(gutter_width, end_y - start_y),
             );
             window.paint_quad(fill(gutter_bounds, gutter_color));
         }

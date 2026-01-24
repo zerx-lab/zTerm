@@ -472,8 +472,25 @@ impl TerminalView {
 
         // Context menu will be automatically hidden by on_mouse_down_out
 
-        // VS Code style: Don't auto-select zones on click, keep normal text selection
-        // Zones are indicated by gutter decorations instead
+        // Check if clicking on a shell integration zone
+        // Single click on gutter or Ctrl+click selects entire zone
+        if event.click_count == 1 {
+            if let Some((zone_start, zone_end)) = self.zone_at_position(event.position, cx) {
+                // Check if click is in gutter area (left 10px) or Ctrl is pressed
+                let bounds = self.shared_bounds.bounds.get();
+                if let Some(b) = bounds {
+                    let click_x: f32 = event.position.x.into();
+                    let origin_x: f32 = b.origin.x.into();
+                    let is_gutter_click = (click_x - origin_x) < 10.0;
+
+                    // Select zone if clicking gutter or holding Ctrl
+                    if is_gutter_click || event.modifiers.control {
+                        self.select_zone(zone_start, zone_end, cx);
+                        return;
+                    }
+                }
+            }
+        }
 
         // Determine selection type based on click count
         let selection_type = match event.click_count {
@@ -634,7 +651,48 @@ impl TerminalView {
         Some(GridPosition { col, row })
     }
 
-    /// Get zone at mouse position (for shell integration context menu)
+    /// Select an entire zone (command block) - VS Code style
+    fn select_zone(&mut self, start_line: usize, end_line: Option<usize>, cx: &mut Context<Self>) {
+        let terminal = self.terminal.read(cx);
+        let content = terminal.content();
+        let display_offset = content.display_offset as i32;
+        let history_size = content.history_size as i32;
+
+        // Convert absolute lines to visual lines
+        let start_visual = start_line as i32 - history_size + display_offset;
+        let end_visual = end_line
+            .map(|end| end as i32 - history_size + display_offset)
+            .unwrap_or(content.screen_lines as i32 - 1);
+
+        // Set selection in UI
+        self.selection_start = Some(GridPosition {
+            col: 0,
+            row: start_visual.max(0) as usize,
+        });
+        self.selection_end = Some(GridPosition {
+            col: terminal.size().cols as usize - 1,
+            row: end_visual.max(0) as usize,
+        });
+
+        // Set selection in alacritty (for copy support)
+        self.terminal.update(cx, |terminal, _| {
+            terminal.start_selection(
+                0,
+                start_visual.max(0),
+                SelectionSide::Left,
+                SelectionType::Lines,
+            );
+            terminal.update_selection(
+                terminal.size().cols as usize - 1,
+                end_visual.max(0),
+                SelectionSide::Right,
+            );
+        });
+
+        cx.notify();
+    }
+
+    /// Get zone at mouse position (for shell integration block selection)
     fn zone_at_position(&self, position: Point<Pixels>, cx: &Context<Self>) -> Option<(usize, Option<usize>)> {
         let terminal = self.terminal.read(cx);
         let content = terminal.content();
