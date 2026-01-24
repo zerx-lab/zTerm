@@ -97,8 +97,8 @@ impl ZTermApp {
                 ),
                 cx,
             ))),
-            focus: true,
-            show: true,
+            focus: false,
+            show: false, // Don't show immediately, wait for content to be ready
             kind: WindowKind::Normal,
             is_movable: true,
             window_background: WindowBackgroundAppearance::Opaque,
@@ -108,7 +108,7 @@ impl ZTermApp {
             ..Default::default()
         };
 
-        cx.open_window(window_options, |_window, cx| {
+        cx.open_window(window_options, |window, cx| {
             // Create the workspace with initial terminal
             let workspace = cx.new(|cx| {
                 let terminal_size = TerminalSize::default();
@@ -116,7 +116,12 @@ impl ZTermApp {
             });
 
             // Create and return the main window view
-            cx.new(|cx| MainWindow::new(workspace, cx))
+            let main_window = cx.new(|cx| MainWindow::new(workspace, cx));
+
+            // Show window after content is ready to avoid transparent flash
+            window.activate_window();
+
+            main_window
         })
         .unwrap();
     }

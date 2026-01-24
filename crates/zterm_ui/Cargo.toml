@@ -15,6 +15,9 @@ zterm_terminal.workspace = true
 gpui.workspace = true
 gpui-component.workspace = true
 
+# Async
+smol.workspace = true
+
 # Utilities
 anyhow.workspace = true
 tracing.workspace = true

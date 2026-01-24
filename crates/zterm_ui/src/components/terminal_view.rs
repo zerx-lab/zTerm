@@ -7,6 +7,11 @@ use gpui::*;
 use std::cell::Cell;
 use std::ops::Range;
 use std::rc::Rc;
+use std::time::Duration;
+
+/// Input batching interval in milliseconds (matches Zed's approach)
+/// Keyboard events within this window are batched into a single PTY write
+const INPUT_BATCH_INTERVAL_MS: u64 = 4;
 
 /// IME (Input Method Editor) state for handling Chinese/Japanese/Korean input
 #[derive(Clone)]
@@ -85,6 +90,12 @@ pub struct TerminalView {
 
     /// Scrollbar state entity
     scrollbar_state: Entity<ScrollbarState>,
+
+    /// Pending keyboard input buffer for batching (reduces PTY writes during key repeat)
+    pending_input: Vec<u8>,
+
+    /// Timer task for flushing pending input
+    input_flush_task: Option<Task<()>>,
 }
 
 impl TerminalView {
@@ -111,6 +122,8 @@ impl TerminalView {
             shared_bounds: SharedBounds::default(),
             ime_state: None,
             scrollbar_state,
+            pending_input: Vec::with_capacity(64), // Pre-allocate for typical input
+            input_flush_task: None,
         }
     }
 
@@ -167,6 +180,7 @@ impl TerminalView {
     }
 
     /// Handle key down events
+    /// Uses input batching to reduce PTY writes during key repeat (long press)
     fn on_key_down(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
         let keystroke = &event.keystroke;
 
@@ -177,10 +191,50 @@ impl TerminalView {
                 self.scroll_to_bottom(cx);
             }
 
-            self.terminal.update(cx, |terminal, _| {
-                terminal.write(input.as_bytes());
-            });
+            // Add to pending buffer instead of immediate send
+            self.pending_input.extend(input.as_bytes());
+
+            // Schedule flush if not already scheduled
+            self.schedule_input_flush(cx);
         }
+    }
+
+    /// Schedule a flush of pending input after INPUT_BATCH_INTERVAL_MS
+    /// Multiple key events within the interval are batched into one PTY write
+    fn schedule_input_flush(&mut self, cx: &mut Context<Self>) {
+        // If already scheduled, let the existing timer handle it
+        if self.input_flush_task.is_some() {
+            return;
+        }
+
+        // Schedule flush after batch interval
+        self.input_flush_task = Some(cx.spawn(async move |this, cx: &mut AsyncApp| {
+            // Wait for batch interval
+            smol::Timer::after(Duration::from_millis(INPUT_BATCH_INTERVAL_MS)).await;
+
+            // Flush pending input
+            let _ = this.update(cx, |view, cx| {
+                view.flush_pending_input(cx);
+            });
+        }));
+    }
+
+    /// Flush all pending input to the PTY in a single write
+    fn flush_pending_input(&mut self, cx: &mut Context<Self>) {
+        self.input_flush_task = None;
+
+        if self.pending_input.is_empty() {
+            return;
+        }
+
+        // Take ownership of pending input and send all at once
+        let input = std::mem::take(&mut self.pending_input);
+        // Reserve capacity for next batch to avoid repeated allocations
+        self.pending_input.reserve(64);
+
+        self.terminal.update(cx, |terminal, _| {
+            terminal.write_owned(input);
+        });
     }
 
     /// Convert a keystroke to terminal input bytes
@@ -486,6 +540,7 @@ impl TerminalView {
     }
 
     /// Commit (send) the given text to the PTY
+    /// Uses input batching for consistency with keyboard input
     pub(crate) fn commit_text(&mut self, text: &str, cx: &mut Context<Self>) {
         if !text.is_empty() {
             // Auto-scroll to bottom when user types (only if not already at bottom)
@@ -493,9 +548,9 @@ impl TerminalView {
                 self.scroll_to_bottom(cx);
             }
 
-            self.terminal.update(cx, |term, _| {
-                term.write_str(text);
-            });
+            // Add to pending buffer and schedule flush
+            self.pending_input.extend(text.as_bytes());
+            self.schedule_input_flush(cx);
         }
     }
 
