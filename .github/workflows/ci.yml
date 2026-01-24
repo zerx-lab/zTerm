@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main, develop]
 
+# 避免重复运行：PR 合并后的 push 事件会被跳过（因为 PR 阶段已检查）
+# 同一分支的多次触发只保留最新的运行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   RUST_BACKTRACE: 1
   CARGO_TERM_COLOR: always
@@ -15,6 +21,10 @@ jobs:
   code-quality:
     name: 代码质量检查 (格式化 & Clippy)
     runs-on: ubuntu-latest
+    # 跳过 PR 合并后的 merge commit（PR 阶段已检查过）
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'Merge pull request'))
     steps:
       - uses: actions/checkout@v4
 
@@ -50,6 +60,9 @@ jobs:
   security-audit:
     name: 安全漏洞扫描
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'Merge pull request'))
     steps:
       - uses: actions/checkout@v4
 
@@ -71,6 +84,9 @@ jobs:
   build:
     name: 构建检查 (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'Merge pull request'))
     strategy:
       fail-fast: false
       matrix:
@@ -108,6 +124,9 @@ jobs:
   test:
     name: 单元测试
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'Merge pull request'))
     steps:
       - uses: actions/checkout@v4
 
@@ -137,6 +156,9 @@ jobs:
   coverage:
     name: 测试覆盖率
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'Merge pull request'))
     steps:
       - uses: actions/checkout@v4
 
@@ -164,6 +186,9 @@ jobs:
   docs:
     name: 文档生成检查
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'Merge pull request'))
     steps:
       - uses: actions/checkout@v4
 
@@ -220,14 +245,28 @@ jobs:
     steps:
       - name: 检查所有任务状态
         run: |
-          # 核心检查必须通过
-          if [[ "${{ needs.code-quality.result }}" != "success" || \
-                "${{ needs.security-audit.result }}" != "success" || \
-                "${{ needs.build.result }}" != "success" || \
-                "${{ needs.test.result }}" != "success" ]]; then
-            echo "❌ CI 检查失败"
-            exit 1
+          # 检查是否所有核心任务都被跳过（merge commit 情况）
+          if [[ "${{ needs.code-quality.result }}" == "skipped" && \
+                "${{ needs.security-audit.result }}" == "skipped" && \
+                "${{ needs.build.result }}" == "skipped" && \
+                "${{ needs.test.result }}" == "skipped" ]]; then
+            echo "⏭️ CI 检查已跳过（PR 合并后的 merge commit，PR 阶段已检查通过）"
+            exit 0
           fi
+          # 核心检查必须通过（success 或 skipped 都算通过）
+          for job in code-quality security-audit build test; do
+            result="${{ needs.code-quality.result }}"
+            case $job in
+              code-quality) result="${{ needs.code-quality.result }}" ;;
+              security-audit) result="${{ needs.security-audit.result }}" ;;
+              build) result="${{ needs.build.result }}" ;;
+              test) result="${{ needs.test.result }}" ;;
+            esac
+            if [[ "$result" != "success" && "$result" != "skipped" ]]; then
+              echo "❌ CI 检查失败: $job = $result"
+              exit 1
+            fi
+          done
           # claude-review 仅在 PR 时运行，skipped 也算通过
           if [[ "${{ needs.claude-review.result }}" != "success" && \
                 "${{ needs.claude-review.result }}" != "skipped" ]]; then
