@@ -1,0 +1,239 @@
+name: Claude CI Auto-Fix
+
+on:
+  # 当 CI workflow 完成时触发
+  workflow_run:
+    workflows: ["CI", "定期安全扫描"]  # 监听 CI 和安全扫描 workflow
+    types: [completed]
+
+  # 也可以通过 PR 评论手动触发
+  issue_comment:
+    types: [created]
+
+env:
+  MAX_FIX_ATTEMPTS: 3
+
+jobs:
+  # 检查是否需要自动修复
+  check-if-fix-needed:
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure') ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@claude fix ci'))
+    outputs:
+      should_fix: ${{ steps.check.outputs.should_fix }}
+      pr_number: ${{ steps.check.outputs.pr_number }}
+      attempt_count: ${{ steps.check.outputs.attempt_count }}
+      branch: ${{ steps.check.outputs.branch }}
+
+    steps:
+      - name: Get PR info from workflow_run
+        id: get-pr
+        if: github.event_name == 'workflow_run'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // 获取触发 workflow 的 PR 信息
+            const headBranch = context.payload.workflow_run.head_branch;
+            const headSha = context.payload.workflow_run.head_sha;
+
+            // 查找对应的 PR
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${headBranch}`,
+              state: 'open'
+            });
+
+            if (prs.length > 0) {
+              core.setOutput('pr_number', prs[0].number);
+              core.setOutput('branch', headBranch);
+              return prs[0].number;
+            }
+            return null;
+
+      - name: Get PR info from comment
+        id: get-pr-comment
+        if: github.event_name == 'issue_comment'
+        run: |
+          echo "pr_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+
+      - name: Check fix attempt count
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = '${{ steps.get-pr.outputs.pr_number }}' || '${{ steps.get-pr-comment.outputs.pr_number }}';
+
+            if (!prNumber) {
+              core.setOutput('should_fix', 'false');
+              console.log('No PR found, skipping fix');
+              return;
+            }
+
+            // 获取 PR 评论，统计修复尝试次数
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: parseInt(prNumber)
+            });
+
+            // 统计 Claude 修复尝试的次数
+            const fixAttempts = comments.filter(c =>
+              c.body.includes('🔧 Claude CI Auto-Fix Attempt')
+            ).length;
+
+            const maxAttempts = parseInt('${{ env.MAX_FIX_ATTEMPTS }}');
+            const shouldFix = fixAttempts < maxAttempts;
+
+            core.setOutput('should_fix', shouldFix.toString());
+            core.setOutput('pr_number', prNumber);
+            core.setOutput('attempt_count', (fixAttempts + 1).toString());
+            core.setOutput('branch', '${{ steps.get-pr.outputs.branch }}' || '');
+
+            console.log(`PR #${prNumber}: Fix attempt ${fixAttempts + 1}/${maxAttempts}`);
+
+            if (!shouldFix) {
+              // 已达到最大尝试次数，添加评论
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parseInt(prNumber),
+                body: `## ❌ CI Auto-Fix Failed\n\nClaude has attempted to fix CI issues ${maxAttempts} times without success.\n\n**Manual intervention required.** Please review the CI failures and fix them manually.\n\n<details>\n<summary>What was tried</summary>\n\nClaude analyzed the CI failures and attempted automatic fixes, but the issues could not be resolved automatically. This may be due to:\n- Complex code changes required\n- Issues outside the scope of automatic fixes\n- Conflicting requirements\n\n</details>`
+              });
+            }
+
+  # 使用 Claude 修复 CI 问题
+  claude-fix:
+    needs: check-if-fix-needed
+    if: needs.check-if-fix-needed.outputs.should_fix == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+      checks: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check-if-fix-needed.outputs.branch }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Post start comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = '${{ needs.check-if-fix-needed.outputs.pr_number }}';
+            const attempt = '${{ needs.check-if-fix-needed.outputs.attempt_count }}';
+            const maxAttempts = '${{ env.MAX_FIX_ATTEMPTS }}';
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: parseInt(prNumber),
+              body: `## 🔧 Claude CI Auto-Fix Attempt ${attempt}/${maxAttempts}\n\nAnalyzing CI failures and attempting automatic fix...\n\n⏳ This may take a few minutes.`
+            });
+
+      - name: Run Claude Code Fix
+        id: claude-fix
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          additional_permissions: |
+            actions: read
+            checks: read
+          # 允许 Claude 运行必要的工具来修复 CI
+          claude_args: >-
+            --allowedTools "Bash"
+            --allowedTools "Edit"
+            --allowedTools "Write"
+            --allowedTools "Read"
+            --allowedTools "Glob"
+            --allowedTools "Grep"
+            --allowedTools "WebFetch"
+            --allowedTools "WebSearch"
+          prompt: |
+            CI workflow "定期安全扫描" has failed on this PR. Please:
+
+            1. Analyze the CI failure logs using `gh run view` to understand what went wrong
+            2. Identify the root cause of the failure
+            3. Make the necessary code changes to fix the issue
+            4. Commit and push the fix
+
+            Important guidelines:
+            - Focus only on fixing the CI failure, don't make unrelated changes
+            - If it's a configuration issue (like deny.toml), fix the config
+            - If it's a code issue, make minimal changes to fix it
+            - If the issue cannot be fixed automatically (e.g., requires human decision), explain why in a comment
+
+            After making changes, verify locally if possible before pushing.
+
+      - name: Post result comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = '${{ needs.check-if-fix-needed.outputs.pr_number }}';
+            const attempt = '${{ needs.check-if-fix-needed.outputs.attempt_count }}';
+            const success = '${{ steps.claude-fix.outcome }}' === 'success';
+
+            const body = success
+              ? `## ✅ Fix Attempt ${attempt} Complete\n\nClaude has pushed fixes. CI will re-run automatically.\n\nIf CI still fails, another fix attempt will be made (up to ${{ env.MAX_FIX_ATTEMPTS }} attempts).`
+              : `## ⚠️ Fix Attempt ${attempt} Had Issues\n\nClaude encountered problems while attempting to fix. Please check the workflow logs for details.`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: parseInt(prNumber),
+              body: body
+            });
+
+  # CI 成功后的清理
+  success-notification:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Check if this was a fix
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const headBranch = context.payload.workflow_run.head_branch;
+
+            // 查找对应的 PR
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${headBranch}`,
+              state: 'open'
+            });
+
+            if (prs.length === 0) return;
+
+            const prNumber = prs[0].number;
+
+            // 检查是否有之前的修复尝试
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber
+            });
+
+            const hadFixAttempts = comments.some(c =>
+              c.body.includes('🔧 Claude CI Auto-Fix Attempt')
+            );
+
+            if (hadFixAttempts) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: `## 🎉 CI Fixed Successfully!\n\nClaude's automatic fix resolved the CI issues. All checks are now passing.\n\nThis PR is ready for review.`
+              });
+            }

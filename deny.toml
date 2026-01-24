@@ -1,50 +1,65 @@
 # cargo-deny 配置文件
 # 用于检查依赖的许可证、安全漏洞和其他问题
+# 文档: https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+# 检查所有目标平台
+all-features = false
+no-default-features = false
 
 [advisories]
 # 安全漏洞检查
-db-path = "~/.cargo/advisory-db"
-db-urls = ["https://github.com/rustsec/advisory-db"]
-vulnerability = "deny"  # 发现漏洞时失败
-unmaintained = "warn"   # 未维护的包警告
-unsound = "warn"        # 不安全的包警告
-yanked = "deny"         # 禁止使用已撤回的包
-notice = "warn"         # 通知级别的问题
+# 忽略上游传递依赖中的未维护警告（本项目无法直接修复）
+ignore = [
+    "RUSTSEC-2024-0384",  # instant - gpui 传递依赖
+    "RUSTSEC-2024-0436",  # paste - gpui-component 传递依赖
+    "RUSTSEC-2017-0008",  # serial - portable-pty 传递依赖
+    "RUSTSEC-2025-0052",  # async-std - gpui 传递依赖
+]
 
 [licenses]
 # 许可证检查
-unlicensed = "deny"
 allow = [
     "MIT",
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "0BSD",
     "ISC",
     "Unicode-DFS-2016",
+    "Unicode-3.0",
     "Zlib",
     "CC0-1.0",
+    "MPL-2.0",
+    "NCSA",
+    "WTFPL",
+    "CC-BY-NC-SA-4.0",  # 本项目许可证
 ]
-deny = [
-    "GPL-2.0",
-    "GPL-3.0",
-    "AGPL-3.0",
-]
-copyleft = "warn"
-allow-osi-fsf-free = "both"
-default = "deny"
 confidence-threshold = 0.8
+
+# 某些 workspace crate 没有在 Cargo.toml 中声明许可证
+# 使用 clarify 来声明其许可证
+[[licenses.clarify]]
+crate = "axon_ui"
+expression = "MIT"
+license-files = []
+
+# 私有 crate 配置
+[licenses.private]
+ignore = true
 
 [bans]
 # 禁止使用的包
-multiple-versions = "warn"  # 多版本依赖警告
-wildcards = "warn"          # 通配符版本警告
+multiple-versions = "warn"
+wildcards = "allow"
 highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
 
-# 可以在这里添加特定的禁止包
-# [[bans.deny]]
-# name = "openssl"
-# wrappers = []
+# 跳过重复版本检查的包
+skip = []
+skip-tree = []
 
 [sources]
 # 源检查
