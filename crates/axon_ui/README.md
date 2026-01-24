@@ -6,8 +6,9 @@
 
 - ✅ 完整的主题颜色定义
 - ✅ 终端 ANSI 16 色支持
-- ✅ 内置 3 个主题：Default Dark、GitHub Dark、GitHub Light
+- ✅ 内置 5 个主题：Default Dark、GitHub Dark、GitHub Light、Tokyo Night、Tokyo Night Light
 - ✅ 主题注册表管理
+- ✅ 主题热重载支持
 - ✅ 99%+ 测试覆盖率
 
 ## 集成到应用
@@ -24,7 +25,7 @@
 
 ```toml
 [ui]
-theme = "GitHub Dark"  # 可选: "Default Dark", "GitHub Dark", "GitHub Light"
+theme = "Tokyo Night"  # 可选主题见下方内置主题列表
 ```
 
 保存后应用会自动重新加载主题并刷新所有窗口。
@@ -42,7 +43,7 @@ let registry = builtin::create_builtin_registry();
 // 获取主题
 let dark_theme = registry.get("Default Dark").unwrap();
 let github_dark = registry.get("GitHub Dark").unwrap();
-let github_light = registry.get("GitHub Light").unwrap();
+let tokyo_night = registry.get("Tokyo Night").unwrap();
 
 // 使用主题颜色
 let bg_color = dark_theme.colors().background;
@@ -141,13 +142,19 @@ let all_themes = registry.all();
 ## 内置主题
 
 ### Default Dark
-经典深色主题，适合长时间编码使用。
+经典深色主题，适合长时间编码使用。中性色调，柔和的对比度。
 
 ### GitHub Dark
-GitHub 官方深色主题配色，与 GitHub 界面保持一致。
+GitHub 官方深色主题配色，与 GitHub 界面保持一致。适合习惯 GitHub 界面的用户。
 
 ### GitHub Light
-GitHub 官方浅色主题配色，清新明亮。
+GitHub 官方浅色主题配色，清新明亮。适合在明亮环境下使用。
+
+### Tokyo Night
+现代深色主题，紫蓝色调，灵感来自东京夜景。柔和的对比度，减少眼睛疲劳。
+
+### Tokyo Night Light
+Tokyo Night 的浅色变体，清新的日间配色。保持与深色主题相同的色彩理念。
 
 ## 测试
 
