@@ -12,12 +12,6 @@ rustflags = ["-C", "target-feature=+crt-static"]
 [target.x86_64-unknown-linux-gnu]
 rustflags = ["-C", "link-arg=-fuse-ld=lld"]
 
-[target.x86_64-apple-darwin]
-rustflags = ["-C", "link-arg=-fuse-ld=lld"]
-
-[target.aarch64-apple-darwin]
-rustflags = ["-C", "link-arg=-fuse-ld=lld"]
-
 [alias]
 # Development aliases
 dev = "run -p z_term"

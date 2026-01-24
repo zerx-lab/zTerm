@@ -5,7 +5,7 @@
 #![allow(clippy::redundant_closure)]
 #![allow(clippy::clone_on_copy)]
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use zterm_ui::TabInfo;
 
 fn create_tab_info(id: usize) -> TabInfo {
