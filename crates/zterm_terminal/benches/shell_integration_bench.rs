@@ -2,7 +2,7 @@
 
 #![allow(clippy::let_and_return)]
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use zterm_terminal::shell_integration::{
     CommandState, CommandZone, OscScanner, ShellIntegrationHandler, TextBuffer, TextExtractor,
     ZoneId, ZoneManager,

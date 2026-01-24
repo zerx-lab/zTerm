@@ -215,9 +215,11 @@ impl OscScanner {
                 let command = Self::decode_percent(params);
                 Some(OscSequence::CommandText { command })
             }
-            "P" => params.strip_prefix("Cwd=").map(|path| OscSequence::WorkingDirectory {
-                path: path.to_string(),
-            }),
+            "P" => params
+                .strip_prefix("Cwd=")
+                .map(|path| OscSequence::WorkingDirectory {
+                    path: path.to_string(),
+                }),
             _ => None,
         }
     }

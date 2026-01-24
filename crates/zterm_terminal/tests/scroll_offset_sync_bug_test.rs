@@ -31,7 +31,6 @@
 
 use alacritty_terminal::event::{Event as AlacEvent, EventListener};
 use alacritty_terminal::grid::{Dimensions, Scroll};
-use alacritty_terminal::index::{Column, Line};
 use alacritty_terminal::term::{Config, Term};
 use alacritty_terminal::vte::ansi::{Processor, StdSyncHandler};
 
@@ -295,7 +294,10 @@ fn test_scroll_offset_synced_after_maximize_fixed() {
         "FIXED: scroll_offset should equal display_offset"
     );
 
-    assert!(view.is_scroll_valid(), "FIXED: scroll state should be valid");
+    assert!(
+        view.is_scroll_valid(),
+        "FIXED: scroll state should be valid"
+    );
 
     assert!(
         view.can_render_content(),
@@ -382,13 +384,9 @@ fn test_multiple_resize_accumulates_desync() {
         let state = view.debug_state();
         println!("After cycle {} (maximize+restore):\n{}", cycle, state);
 
-        let sync_error =
-            (state.view_scroll_offset as i64 - state.term_display_offset as i64).abs();
+        let sync_error = (state.view_scroll_offset as i64 - state.term_display_offset as i64).abs();
         if sync_error > 0 {
-            println!(
-                "Cycle {}: sync error = {} lines",
-                cycle, sync_error
-            );
+            println!("Cycle {}: sync error = {} lines", cycle, sync_error);
         }
     }
 
@@ -467,21 +465,34 @@ fn test_user_scenario_detailed() {
     view.scroll_up(50);
     let before_max = view.debug_state();
     println!("{}", before_max);
-    println!("User is viewing content at scroll_offset={}", view.scroll_offset);
+    println!(
+        "User is viewing content at scroll_offset={}",
+        view.scroll_offset
+    );
 
     // Step 4: User maximizes window (double-click titlebar)
     println!("\nSTEP 4: User maximizes window (80x67)");
-    println!(">>> BEFORE: scroll_offset={}, history_size={}", view.scroll_offset, view.term.history_size());
+    println!(
+        ">>> BEFORE: scroll_offset={}, history_size={}",
+        view.scroll_offset,
+        view.term.history_size()
+    );
     view.resize_buggy(80, 67);
     let after_max = view.debug_state();
-    println!(">>> AFTER:  scroll_offset={}, history_size={}", view.scroll_offset, view.term.history_size());
+    println!(
+        ">>> AFTER:  scroll_offset={}, history_size={}",
+        view.scroll_offset,
+        view.term.history_size()
+    );
     println!("\n{}", after_max);
 
     // Check for bug condition
     if after_max.view_scroll_offset > after_max.history_size {
         println!("!!! BUG DETECTED !!!");
-        println!("scroll_offset ({}) > history_size ({})",
-            after_max.view_scroll_offset, after_max.history_size);
+        println!(
+            "scroll_offset ({}) > history_size ({})",
+            after_max.view_scroll_offset, after_max.history_size
+        );
         println!("User cannot scroll to this content - IT'S LOST!");
     }
 
@@ -508,8 +519,14 @@ fn test_user_scenario_detailed() {
 
     println!("\n=== BUG SUCCESSFULLY REPRODUCED ===");
     println!("After maximize:");
-    println!("- View scroll_offset: {} (STALE - not updated on resize)", after_max.view_scroll_offset);
-    println!("- Term display_offset: {} (correct)", after_max.term_display_offset);
+    println!(
+        "- View scroll_offset: {} (STALE - not updated on resize)",
+        after_max.view_scroll_offset
+    );
+    println!(
+        "- Term display_offset: {} (correct)",
+        after_max.term_display_offset
+    );
     println!("- History size: {}", after_max.history_size);
     println!("\nThe view's scroll_offset exceeds history_size,");
     println!("making scrollback inaccessible and causing:");
@@ -534,7 +551,10 @@ fn test_desync_causes_render_issues() {
     view.scroll_up(60);
     println!("Scrolled up 60 lines");
     println!("scroll_offset = {}", view.scroll_offset);
-    println!("history_size (before resize) = {}", view.term.history_size());
+    println!(
+        "history_size (before resize) = {}",
+        view.term.history_size()
+    );
 
     // Maximize to a much larger size to shrink history significantly
     view.resize_buggy(80, 80);
@@ -565,7 +585,10 @@ fn test_desync_causes_render_issues() {
     );
 
     println!("\n=== RENDER BUG SUCCESSFULLY REPRODUCED ===");
-    println!("scroll_offset ({}) > history_size ({})", state.view_scroll_offset, state.history_size);
+    println!(
+        "scroll_offset ({}) > history_size ({})",
+        state.view_scroll_offset, state.history_size
+    );
 }
 
 // ============================================================================
