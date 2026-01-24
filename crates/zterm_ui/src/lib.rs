@@ -7,6 +7,7 @@
 
 pub mod components;
 pub mod elements;
+pub mod shell_integration;
 pub mod theme;
 
 pub use components::title_bar::{

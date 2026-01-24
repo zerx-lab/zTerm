@@ -32,6 +32,8 @@ parking_lot.workspace = true
 unicode-width.workspace = true
 dirs.workspace = true
 which = "7"
+termwiz = { version = "0.23.3", default-features = false }
+polling = "3.11.0"
 
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
@@ -45,4 +47,8 @@ criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bench]]
 name = "terminal_benchmarks"
+harness = false
+
+[[bench]]
+name = "shell_integration_bench"
 harness = false

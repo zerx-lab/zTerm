@@ -41,13 +41,13 @@ mod terminal_tab_bar_tests {
 
     #[test]
     fn test_tab_bar_with_single_tab() {
-        let tabs = vec![TabInfo {
-            id: 0,
-            title: "Terminal".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "/home/user".to_string(),
-        }];
+        let tabs = vec![TabInfo::new(
+            0,
+            "Terminal".to_string(),
+            true,
+            "bash".to_string(),
+            "/home/user".to_string(),
+        )];
         let tab_bar = TerminalTabBar::new().tabs(tabs);
         assert!(std::mem::size_of_val(&tab_bar) > 0);
     }
@@ -55,27 +55,27 @@ mod terminal_tab_bar_tests {
     #[test]
     fn test_tab_bar_with_multiple_tabs() {
         let tabs = vec![
-            TabInfo {
-                id: 0,
-                title: "Terminal 1".to_string(),
-                active: true,
-                shell_name: "bash".to_string(),
-                working_directory: "/home/user".to_string(),
-            },
-            TabInfo {
-                id: 1,
-                title: "Terminal 2".to_string(),
-                active: false,
-                shell_name: "zsh".to_string(),
-                working_directory: "/tmp".to_string(),
-            },
-            TabInfo {
-                id: 2,
-                title: "Terminal 3".to_string(),
-                active: false,
-                shell_name: "fish".to_string(),
-                working_directory: "/var/log".to_string(),
-            },
+            TabInfo::new(
+                0,
+                "Terminal 1".to_string(),
+                true,
+                "bash".to_string(),
+                "/home/user".to_string(),
+            ),
+            TabInfo::new(
+                1,
+                "Terminal 2".to_string(),
+                false,
+                "zsh".to_string(),
+                "/tmp".to_string(),
+            ),
+            TabInfo::new(
+                2,
+                "Terminal 3".to_string(),
+                false,
+                "fish".to_string(),
+                "/var/log".to_string(),
+            ),
         ];
         let tab_bar = TerminalTabBar::new().tabs(tabs);
         assert!(std::mem::size_of_val(&tab_bar) > 0);
@@ -85,13 +85,13 @@ mod terminal_tab_bar_tests {
     fn test_tab_bar_with_many_tabs() {
         // Test with 100 tabs to verify no overflow issues
         let tabs: Vec<TabInfo> = (0..100)
-            .map(|i| TabInfo {
-                id: i,
-                title: format!("Terminal {}", i),
-                active: i == 0,
-                shell_name: "bash".to_string(),
-                working_directory: format!("/home/user/project{}", i),
-            })
+            .map(|i| TabInfo::new(
+                i,
+                format!("Terminal {}", i),
+                i == 0,
+                "bash".to_string(),
+                format!("/home/user/project{}", i),
+            ))
             .collect();
         let tab_bar = TerminalTabBar::new().tabs(tabs);
         assert!(std::mem::size_of_val(&tab_bar) > 0);
@@ -99,13 +99,13 @@ mod terminal_tab_bar_tests {
 
     #[test]
     fn test_tab_bar_builder_chain() {
-        let tabs = vec![TabInfo {
-            id: 0,
-            title: "Test".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "~".to_string(),
-        }];
+        let tabs = vec![TabInfo::new(
+            0,
+            "Test".to_string(),
+            true,
+            "bash".to_string(),
+            "~".to_string(),
+        )];
         // Test that builder pattern works correctly
         let _tab_bar = TerminalTabBar::new().tabs(tabs);
     }
@@ -624,87 +624,87 @@ mod tab_info_boundary_tests {
 
     #[test]
     fn test_tab_info_max_id() {
-        let tab = TabInfo {
-            id: usize::MAX,
-            title: "Max ID Tab".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "/".to_string(),
-        };
+        let tab = TabInfo::new(
+            usize::MAX,
+            "Max ID Tab".to_string(),
+            true,
+            "bash".to_string(),
+            "/".to_string(),
+        );
         assert_eq!(tab.id, usize::MAX);
     }
 
     #[test]
     fn test_tab_info_very_long_title() {
         let long_title = "a".repeat(10000);
-        let tab = TabInfo {
-            id: 0,
-            title: long_title.clone(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "/".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            long_title.clone(),
+            true,
+            "bash".to_string(),
+            "/".to_string(),
+        );
         assert_eq!(tab.title.len(), 10000);
     }
 
     #[test]
     fn test_tab_info_unicode_title() {
-        let tab = TabInfo {
-            id: 0,
-            title: "终端 Terminal ターミナル 터미널".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "/".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            "终端 Terminal ターミナル 터미널".to_string(),
+            true,
+            "bash".to_string(),
+            "/".to_string(),
+        );
         assert!(tab.title.contains("终端"));
         assert!(tab.title.contains("ターミナル"));
     }
 
     #[test]
     fn test_tab_info_special_characters_in_shell() {
-        let tab = TabInfo {
-            id: 0,
-            title: "Test".to_string(),
-            active: true,
-            shell_name: "/usr/local/bin/my-custom-shell".to_string(),
-            working_directory: "/".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            "Test".to_string(),
+            true,
+            "/usr/local/bin/my-custom-shell".to_string(),
+            "/".to_string(),
+        );
         assert!(tab.shell_name.contains("my-custom-shell"));
     }
 
     #[test]
     fn test_tab_info_windows_path() {
-        let tab = TabInfo {
-            id: 0,
-            title: "Windows".to_string(),
-            active: true,
-            shell_name: "pwsh".to_string(),
-            working_directory: "C:\\Users\\Test\\Documents".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            "Windows".to_string(),
+            true,
+            "pwsh".to_string(),
+            "C:\\Users\\Test\\Documents".to_string(),
+        );
         assert!(tab.working_directory.contains("C:\\"));
     }
 
     #[test]
     fn test_tab_info_network_path() {
-        let tab = TabInfo {
-            id: 0,
-            title: "Network".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "//server/share/folder".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            "Network".to_string(),
+            true,
+            "bash".to_string(),
+            "//server/share/folder".to_string(),
+        );
         assert!(tab.working_directory.starts_with("//"));
     }
 
     #[test]
     fn test_tab_info_empty_strings() {
-        let tab = TabInfo {
-            id: 0,
-            title: String::new(),
-            active: true,
-            shell_name: String::new(),
-            working_directory: String::new(),
-        };
+        let tab = TabInfo::new(
+            0,
+            String::new(),
+            true,
+            String::new(),
+            String::new(),
+        );
         assert!(tab.title.is_empty());
         assert!(tab.shell_name.is_empty());
         assert!(tab.working_directory.is_empty());
@@ -713,35 +713,35 @@ mod tab_info_boundary_tests {
     #[test]
     fn test_display_directory_complex_paths() {
         // Root path
-        let tab = TabInfo {
-            id: 0,
-            title: "Root".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "/".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            "Root".to_string(),
+            true,
+            "bash".to_string(),
+            "/".to_string(),
+        );
         assert_eq!(tab.display_directory(), "/");
 
         // Deep nested path
-        let tab = TabInfo {
-            id: 0,
-            title: "Deep".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "/a/b/c/d/e/f/g/target".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            "Deep".to_string(),
+            true,
+            "bash".to_string(),
+            "/a/b/c/d/e/f/g/target".to_string(),
+        );
         assert_eq!(tab.display_directory(), "target");
     }
 
     #[test]
     fn test_display_directory_trailing_slash() {
-        let tab = TabInfo {
-            id: 0,
-            title: "Trailing".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "/home/user/project/".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            "Trailing".to_string(),
+            true,
+            "bash".to_string(),
+            "/home/user/project/".to_string(),
+        );
         // Should handle trailing slash gracefully
         let display = tab.display_directory();
         assert!(!display.is_empty());
@@ -867,13 +867,13 @@ mod edge_case_tests {
 
     #[test]
     fn test_tab_info_clone_independence() {
-        let original = TabInfo {
-            id: 1,
-            title: "Original".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "/home/user".to_string(),
-        };
+        let original = TabInfo::new(
+            1,
+            "Original".to_string(),
+            true,
+            "bash".to_string(),
+            "/home/user".to_string(),
+        );
         let cloned = original.clone();
 
         // Verify they are independent
@@ -934,37 +934,37 @@ mod input_boundary_tests {
 
     #[test]
     fn test_tab_title_control_chars() {
-        let tab = TabInfo {
-            id: 0,
-            title: "Title\twith\ttabs".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "/".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            "Title\twith\ttabs".to_string(),
+            true,
+            "bash".to_string(),
+            "/".to_string(),
+        );
         assert!(tab.title.contains("\t"));
     }
 
     #[test]
     fn test_path_with_spaces() {
-        let tab = TabInfo {
-            id: 0,
-            title: "Spaced".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "/home/user/My Documents/Project Name".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            "Spaced".to_string(),
+            true,
+            "bash".to_string(),
+            "/home/user/My Documents/Project Name".to_string(),
+        );
         assert_eq!(tab.display_directory(), "Project Name");
     }
 
     #[test]
     fn test_path_with_unicode() {
-        let tab = TabInfo {
-            id: 0,
-            title: "Unicode".to_string(),
-            active: true,
-            shell_name: "bash".to_string(),
-            working_directory: "/home/用户/文档/项目".to_string(),
-        };
+        let tab = TabInfo::new(
+            0,
+            "Unicode".to_string(),
+            true,
+            "bash".to_string(),
+            "/home/用户/文档/项目".to_string(),
+        );
         assert_eq!(tab.display_directory(), "项目");
     }
 }

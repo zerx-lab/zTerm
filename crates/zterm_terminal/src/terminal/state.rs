@@ -1,13 +1,15 @@
 //! Terminal state and entity management using alacritty_terminal
 //!
-//! This module follows Zed's terminal architecture:
-//! - Uses alacritty's EventLoop for PTY I/O (runs in background thread)
+//! This module follows Zed's terminal architecture with shell integration:
+//! - Custom PTY I/O loop with OSC sequence interception
 //! - Batches events with 4ms timer to reduce UI updates
 //! - Syncs content only on Wakeup events
+//! - Captures OSC 133/633 for shell integration
 
+use super::pty_loop::{Msg as PtyMsg, Notifier as PtyNotifier, OscEvent, PtyEventLoop};
+use crate::shell_integration::{OscSequence, ShellIntegrationHandler, ZoneManager};
 use crate::TerminalEvent;
 use alacritty_terminal::event::{Event as AlacTermEvent, EventListener, WindowSize};
-use alacritty_terminal::event_loop::{EventLoop, Msg, Notifier};
 use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::index::{Column, Line, Point as AlacPoint};
 use alacritty_terminal::selection::SelectionRange;
@@ -19,6 +21,7 @@ use alacritty_terminal::Term;
 use gpui::{AsyncApp, Bounds, Context, EventEmitter, Pixels, Size, Task, px};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::mpsc;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{error, info};
@@ -123,6 +126,23 @@ pub struct IndexedCell {
     pub cell: Cell,
 }
 
+/// Zone info for rendering shell integration visuals
+#[derive(Debug, Clone)]
+pub struct ZoneInfo {
+    /// Start line of the zone (in scrollback coordinates)
+    pub start_line: usize,
+    /// End line of the zone (exclusive, None if active)
+    pub end_line: Option<usize>,
+    /// Whether this is the prompt line
+    pub is_prompt_line: bool,
+    /// Whether the command is still running
+    pub is_running: bool,
+    /// Exit code if finished
+    pub exit_code: Option<i32>,
+    /// Command text if captured
+    pub command: Option<String>,
+}
+
 /// Terminal content for rendering
 #[derive(Clone)]
 pub struct TerminalContent {
@@ -136,6 +156,8 @@ pub struct TerminalContent {
     pub total_lines: usize,
     pub screen_lines: usize,
     pub history_size: usize,
+    /// Zone information for visible lines (for shell integration rendering)
+    pub zones: Vec<ZoneInfo>,
 }
 
 impl Default for TerminalContent {
@@ -154,6 +176,7 @@ impl Default for TerminalContent {
             total_lines: 24,
             screen_lines: 24,
             history_size: 0,
+            zones: Vec::new(),
         }
     }
 }
@@ -164,7 +187,7 @@ pub struct Terminal {
     term: Arc<FairMutex<Term<TerminalEventListener>>>,
 
     /// PTY notifier for sending data to PTY
-    pty_tx: Option<Notifier>,
+    pty_tx: Option<PtyNotifier>,
 
     /// Current size
     size: TerminalSize,
@@ -186,6 +209,12 @@ pub struct Terminal {
 
     /// Event loop task (processes alacritty events)
     _event_loop_task: Task<anyhow::Result<()>>,
+
+    /// Shell integration handler
+    shell_handler: ShellIntegrationHandler,
+
+    /// Current cursor line (for shell integration)
+    current_line: usize,
 }
 
 impl EventEmitter<TerminalEvent> for Terminal {}
@@ -226,6 +255,8 @@ impl Terminal {
         let mut env: HashMap<String, String> = std::env::vars().collect();
         env.insert("TERM".to_string(), "xterm-256color".to_string());
         env.insert("COLORTERM".to_string(), "truecolor".to_string());
+        // Enable shell integration detection
+        env.insert("ZTERM_SHELL_INTEGRATION".to_string(), "1".to_string());
 
         let pty_options = tty::Options {
             shell: Some(alac_shell),
@@ -247,13 +278,16 @@ impl Terminal {
             }
         };
 
-        // Create EventLoop (this handles PTY I/O in background thread)
-        let event_loop = match EventLoop::new(
+        // Create OSC event channel for shell integration
+        let (osc_tx, osc_rx) = mpsc::channel::<OscEvent>();
+
+        // Create custom PTY EventLoop with OSC scanning
+        let event_loop = match PtyEventLoop::new(
             term.clone(),
             listener,
             pty,
             pty_options.drain_on_exit,
-            false,
+            osc_tx,
         ) {
             Ok(el) => el,
             Err(e) => {
@@ -263,13 +297,13 @@ impl Terminal {
             }
         };
 
-        let pty_tx = Notifier(event_loop.channel());
-        let _io_thread = event_loop.spawn(); // Spawns background I/O thread
+        let pty_tx = PtyNotifier(event_loop.channel());
+        let _io_thread = event_loop.spawn(); // Spawns background I/O thread with OSC scanning
 
-        info!("Terminal created with alacritty EventLoop");
+        info!("Terminal created with shell integration enabled (PTY scanning active)");
 
         // Create event processing task (batches events like Zed does)
-        let event_loop_task = Self::spawn_event_loop(events_rx, cx);
+        let event_loop_task = Self::spawn_event_loop(events_rx, osc_rx, cx);
 
         Self {
             term,
@@ -281,6 +315,8 @@ impl Terminal {
             exited: false,
             last_content: TerminalContent::default(),
             _event_loop_task: event_loop_task,
+            shell_handler: ShellIntegrationHandler::new(),
+            current_line: 0,
         }
     }
 
@@ -307,18 +343,15 @@ impl Terminal {
             exited: true,
             last_content: TerminalContent::default(),
             _event_loop_task: Task::ready(Ok(())),
+            shell_handler: ShellIntegrationHandler::new(),
+            current_line: 0,
         }
     }
 
     /// Spawn event loop task that batches alacritty events (following Zed's pattern)
-    /// 
-    /// Optimization strategy:
-    /// - Process first event immediately for lowest latency
-    /// - Batch subsequent events within 4ms window to reduce UI updates
-    /// - Pre-allocate event buffer to avoid repeated allocations
-    /// - Coalesce multiple Wakeup events into one
     fn spawn_event_loop(
         mut events_rx: futures::channel::mpsc::UnboundedReceiver<AlacTermEvent>,
+        osc_rx: mpsc::Receiver<OscEvent>,
         cx: &mut Context<Self>,
     ) -> Task<anyhow::Result<()>> {
         use futures::StreamExt;
@@ -326,8 +359,15 @@ impl Terminal {
         cx.spawn(async move |terminal, cx: &mut AsyncApp| {
             // Pre-allocate buffer for batch events (reused across iterations)
             let mut batch_buffer: Vec<AlacTermEvent> = Vec::with_capacity(64);
-            
+
             while let Some(event) = events_rx.next().await {
+                // Drain OSC events first (non-blocking)
+                while let Ok(osc_event) = osc_rx.try_recv() {
+                    terminal.update(cx, |terminal, _cx| {
+                        terminal.handle_osc_sequence(osc_event.sequence, osc_event.line);
+                    })?;
+                }
+
                 // Process first event immediately for lower latency
                 terminal.update(cx, |terminal, cx| {
                     terminal.process_event(event, cx);
@@ -344,6 +384,13 @@ impl Terminal {
                     futures::pin_mut!(timer);
 
                     loop {
+                        // Drain OSC events (non-blocking)
+                        while let Ok(osc_event) = osc_rx.try_recv() {
+                            terminal.update(cx, |terminal, _cx| {
+                                terminal.handle_osc_sequence(osc_event.sequence, osc_event.line);
+                            })?;
+                        }
+
                         futures::select_biased! {
                             // Check for events first (biased) before timer
                             event = events_rx.next() => {
@@ -427,12 +474,11 @@ impl Terminal {
     }
 
     /// Sync content from alacritty term for rendering
-    /// Optimized to minimize lock hold time and memory allocations
     fn sync_content(&mut self) {
         // Take ownership of existing cells Vec to reuse its capacity
         let mut cells = std::mem::take(&mut self.last_content.cells);
         cells.clear();
-        
+
         // Preserve terminal_bounds as it's set externally
         let terminal_bounds = self.last_content.terminal_bounds;
 
@@ -456,7 +502,12 @@ impl Terminal {
             }
 
             let cursor_char = term.grid()[content.cursor.point].c;
-            
+            let history_size = term.history_size();
+
+            // Update current line for shell integration
+            self.current_line = content.cursor.point.line.0 as usize + history_size;
+            self.shell_handler.set_current_line(self.current_line);
+
             (
                 content.mode,
                 content.display_offset,
@@ -465,10 +516,13 @@ impl Terminal {
                 cursor_char,
                 term.grid().total_lines(),
                 term.grid().screen_lines(),
-                term.history_size(),
+                history_size,
             )
             // Lock released here
         };
+
+        // Build zone info for visible lines
+        let zones = self.build_zone_info(display_offset, screen_lines, history_size);
 
         self.last_content = TerminalContent {
             cells,
@@ -481,22 +535,143 @@ impl Terminal {
             total_lines,
             screen_lines,
             history_size,
+            zones,
         };
     }
 
+    /// Build zone information for visible lines
+    fn build_zone_info(
+        &self,
+        display_offset: usize,
+        screen_lines: usize,
+        history_size: usize,
+    ) -> Vec<ZoneInfo> {
+        let mut zones = Vec::new();
+        let zone_manager = self.shell_handler.zone_manager();
+
+        // Calculate visible line range in scrollback coordinates
+        let first_visible = history_size.saturating_sub(display_offset);
+        let last_visible = first_visible + screen_lines;
+
+        // Find zones that intersect visible range
+        for zone in zone_manager.zones() {
+            let zone_end = zone.end_line.unwrap_or(usize::MAX);
+
+            // Check if zone intersects visible range
+            if zone.start_line < last_visible && zone_end > first_visible {
+                zones.push(ZoneInfo {
+                    start_line: zone.start_line,
+                    end_line: zone.end_line,
+                    is_prompt_line: true, // First line of zone is prompt
+                    is_running: zone.state.is_running(),
+                    exit_code: zone.state.exit_code(),
+                    command: zone.command.clone(),
+                });
+            }
+        }
+
+        zones
+    }
+
+    /// Handle an OSC sequence (internal, without context)
+    fn handle_osc_sequence(&mut self, seq: OscSequence, line: usize) {
+        // Update current line for shell integration
+        self.current_line = line;
+        self.shell_handler.set_current_line(line);
+
+        match seq {
+            OscSequence::PromptStart => {
+                self.shell_handler.handle_osc(b"133;A");
+            }
+            OscSequence::CommandStart => {
+                self.shell_handler.handle_osc(b"133;B");
+            }
+            OscSequence::CommandExecuting => {
+                self.shell_handler.handle_osc(b"133;C");
+            }
+            OscSequence::CommandFinished { exit_code } => {
+                let osc = format!("133;D;{}", exit_code);
+                self.shell_handler.handle_osc(osc.as_bytes());
+            }
+            OscSequence::CommandText { command } => {
+                let encoded: String = command
+                    .chars()
+                    .map(|c| {
+                        if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' {
+                            c.to_string()
+                        } else {
+                            format!("%{:02X}", c as u8)
+                        }
+                    })
+                    .collect();
+                let osc = format!("633;E;{}", encoded);
+                self.shell_handler.handle_osc(osc.as_bytes());
+            }
+            OscSequence::WorkingDirectory { path } | OscSequence::Osc7WorkingDirectory { path } => {
+                self.working_directory = PathBuf::from(&path);
+                self.shell_handler.zone_manager_mut().set_working_directory(path);
+            }
+        }
+    }
+
+    /// Handle an OSC sequence with context (for external calls)
+    pub fn handle_osc_sequence_with_cx(&mut self, seq: OscSequence, line: usize, cx: &mut Context<Self>) {
+        self.handle_osc_sequence(seq, line);
+
+        // Emit shell events
+        for event in self.shell_handler.take_events() {
+            cx.emit(TerminalEvent::ShellIntegration(event));
+        }
+
+        cx.notify();
+    }
+
+    /// Get the zone manager for external access
+    pub fn zone_manager(&self) -> &ZoneManager {
+        self.shell_handler.zone_manager()
+    }
+
+    /// Get the zone at a specific line
+    pub fn zone_at_line(&self, line: usize) -> Option<ZoneInfo> {
+        self.shell_handler.zone_manager().zone_at_line(line).map(|zone| {
+            ZoneInfo {
+                start_line: zone.start_line,
+                end_line: zone.end_line,
+                is_prompt_line: true,
+                is_running: zone.state.is_running(),
+                exit_code: zone.state.exit_code(),
+                command: zone.command.clone(),
+            }
+        })
+    }
+
+    /// Navigate to previous prompt
+    pub fn previous_prompt(&self) -> Option<usize> {
+        self.shell_handler
+            .zone_manager()
+            .previous_prompt(self.current_line)
+            .map(|z| z.start_line)
+    }
+
+    /// Navigate to next prompt
+    pub fn next_prompt(&self) -> Option<usize> {
+        self.shell_handler
+            .zone_manager()
+            .next_prompt(self.current_line)
+            .map(|z| z.start_line)
+    }
+
     /// Write data to PTY
-    /// Uses Cow::Owned since Msg::Input requires 'static lifetime
     #[inline(always)]
     fn write_to_pty(&self, data: Vec<u8>) {
         if let Some(ref pty_tx) = self.pty_tx {
-            let _ = pty_tx.0.send(Msg::Input(std::borrow::Cow::Owned(data)));
+            let _ = pty_tx.0.send(PtyMsg::Input(std::borrow::Cow::Owned(data)));
         }
     }
 
     /// Write data to the terminal (keyboard input)
     #[inline(always)]
     pub fn write(&mut self, data: &[u8]) {
-        // For typical keyboard input (1-10 bytes), Vec allocation is minimal
         self.write_to_pty(data.to_vec());
     }
 
@@ -541,7 +716,7 @@ impl Terminal {
 
         // Notify PTY of resize
         if let Some(ref pty_tx) = self.pty_tx {
-            let _ = pty_tx.0.send(Msg::Resize(bounds.into()));
+            let _ = pty_tx.0.send(PtyMsg::Resize(bounds.into()));
         }
 
         cx.emit(TerminalEvent::Resized {
@@ -567,11 +742,10 @@ impl Terminal {
             }
 
             if let Some(ref pty_tx) = self.pty_tx {
-                let _ = pty_tx.0.send(Msg::Resize(bounds.into()));
+                let _ = pty_tx.0.send(PtyMsg::Resize(bounds.into()));
             }
 
-            // Force immediate content sync after resize to prevent rendering artifacts
-            // This ensures new size is reflected in content immediately, preventing element ghosting
+            // Force immediate content sync after resize
             self.sync_content();
         }
     }
@@ -638,9 +812,7 @@ impl Terminal {
     /// Set absolute scroll offset (0 = bottom/newest, history_size = top/oldest)
     pub fn set_scroll_offset(&mut self, offset: usize) {
         let mut term = self.term.lock();
-        // Get current display offset
         let current_offset = term.grid().display_offset();
-        // Calculate delta needed
         let delta = offset as i32 - current_offset as i32;
         if delta != 0 {
             term.scroll_display(alacritty_terminal::grid::Scroll::Delta(delta));
