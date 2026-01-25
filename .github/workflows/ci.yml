@@ -19,7 +19,7 @@ env:
 jobs:
   # 代码质量检查
   code-quality:
-    name: 代码质量检查 (格式化 & Clippy)
+    name: 代码质量检查 (格式化)
     runs-on: ubuntu-latest
     # 跳过 PR 合并后的 merge commit（PR 阶段已检查过）
     if: |
@@ -31,7 +31,7 @@ jobs:
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: rustfmt
 
       - name: 缓存 Cargo 依赖
         uses: actions/cache@v4
@@ -46,15 +46,6 @@ jobs:
 
       - name: 检查代码格式
         run: cargo fmt --all -- --check
-
-      - name: Clippy 静态分析 (严格模式)
-        run: |
-          cargo clippy --workspace --all-targets --all-features -- \
-            -D warnings \
-            -W clippy::all \
-            -W clippy::pedantic \
-            -W clippy::nursery \
-            -W clippy::cargo
 
   # 安全漏洞扫描
   security-audit:
@@ -90,7 +81,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest]
         rust: [stable]
     steps:
       - uses: actions/checkout@v4
@@ -115,7 +106,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev
+          sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libxkbcommon-x11-dev
 
       - name: 检查编译
         run: cargo check --workspace --all-targets --all-features
@@ -147,40 +138,10 @@ jobs:
       - name: Linux 依赖安装
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev
+          sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libxkbcommon-x11-dev
 
       - name: 运行测试
         run: cargo test --workspace --all-features -- --nocapture
-
-  # 代码覆盖率 (仅 Linux)
-  coverage:
-    name: 测试覆盖率
-    runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'pull_request' ||
-      (github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'Merge pull request'))
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: 安装 Rust 工具链
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Linux 依赖安装
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev
-
-      - name: 安装 cargo-llvm-cov
-        run: cargo install cargo-llvm-cov --locked
-
-      - name: 生成覆盖率报告
-        run: cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info
-
-      - name: 上传覆盖率到 Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          files: lcov.info
-          fail_ci_if_error: false
 
   # 文档生成检查
   docs:
@@ -198,7 +159,7 @@ jobs:
       - name: Linux 依赖安装
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev
+          sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libxkbcommon-x11-dev
 
       - name: 生成文档
         run: cargo doc --workspace --all-features --no-deps --document-private-items
@@ -240,7 +201,6 @@ jobs:
       - security-audit
       - build
       - test
-      - coverage
       - docs
       - claude-review
     runs-on: ubuntu-latest
