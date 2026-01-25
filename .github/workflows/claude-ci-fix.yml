@@ -296,6 +296,36 @@ jobs:
             - If it's a code issue, make minimal changes to fix it
             - If the issue cannot be fixed automatically (e.g., requires human decision), explain why in a comment
 
+      - name: Check if new commits were pushed
+        id: check-commits
+        run: |
+          # 获取远程最新状态
+          git fetch origin ${{ needs.check-if-fix-needed.outputs.branch }}
+
+          # 检查本地是否有未推送的提交
+          LOCAL_HEAD=$(git rev-parse HEAD)
+          REMOTE_HEAD=$(git rev-parse origin/${{ needs.check-if-fix-needed.outputs.branch }})
+
+          if [ "$LOCAL_HEAD" != "$REMOTE_HEAD" ]; then
+            # 检查远程是否比触发时有新提交
+            TRIGGER_SHA="${{ github.event.workflow_run.head_sha }}"
+            if [ "$REMOTE_HEAD" != "$TRIGGER_SHA" ]; then
+              echo "has_new_commits=true" >> $GITHUB_OUTPUT
+              echo "New commits detected: $REMOTE_HEAD vs trigger $TRIGGER_SHA"
+            else
+              echo "has_new_commits=false" >> $GITHUB_OUTPUT
+              echo "No new commits pushed"
+            fi
+          else
+            # 检查远程是否有新提交
+            TRIGGER_SHA="${{ github.event.workflow_run.head_sha }}"
+            if [ "$REMOTE_HEAD" != "$TRIGGER_SHA" ]; then
+              echo "has_new_commits=true" >> $GITHUB_OUTPUT
+            else
+              echo "has_new_commits=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
       - name: Post result comment
         if: always()
         uses: actions/github-script@v7
@@ -303,11 +333,18 @@ jobs:
           script: |
             const prNumber = '${{ needs.check-if-fix-needed.outputs.pr_number }}';
             const attempt = '${{ needs.check-if-fix-needed.outputs.attempt_count }}';
-            const success = '${{ steps.claude-fix.outcome }}' === 'success';
+            const maxAttempts = '${{ env.MAX_FIX_ATTEMPTS }}';
+            const claudeSuccess = '${{ steps.claude-fix.outcome }}' === 'success';
+            const hasNewCommits = '${{ steps.check-commits.outputs.has_new_commits }}' === 'true';
 
-            const body = success
-              ? `## ✅ Fix Attempt ${attempt} Complete\n\nClaude has pushed fixes. CI will re-run automatically.\n\nIf CI still fails, another fix attempt will be made (up to ${{ env.MAX_FIX_ATTEMPTS }} attempts).`
-              : `## ⚠️ Fix Attempt ${attempt} Had Issues\n\nClaude encountered problems while attempting to fix. Please check the workflow logs for details.`;
+            let body;
+            if (claudeSuccess && hasNewCommits) {
+              body = `## ✅ Fix Attempt ${attempt} Complete\n\nClaude has pushed fixes. CI will re-run automatically.\n\nIf CI still fails, another fix attempt will be made (up to ${maxAttempts} attempts).`;
+            } else if (claudeSuccess && !hasNewCommits) {
+              body = `## ⚠️ Fix Attempt ${attempt} - No Automatic Fix Available\n\nClaude analyzed the CI failures but could not automatically fix them.\n\n**Manual intervention required.** Please review the CI failures and fix them manually.\n\nPossible reasons:\n- The issue requires human decision or design choices\n- The fix is outside the scope of automatic repairs\n- Complex refactoring is needed`;
+            } else {
+              body = `## ❌ Fix Attempt ${attempt} Failed\n\nClaude encountered problems while attempting to fix. Please check the workflow logs for details.`;
+            }
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
