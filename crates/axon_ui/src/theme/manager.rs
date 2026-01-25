@@ -1,5 +1,6 @@
 //! 全局主题管理器
 
+use super::loader::ThemeLoader;
 use super::{Theme, ThemeRegistry};
 use gpui::{App, BorrowAppContext, Global};
 use std::sync::Arc;
@@ -22,7 +23,11 @@ impl ThemeManager {
     ///
     /// 使用内置主题注册表初始化，默认主题为 "Default Dark"
     pub fn new() -> Self {
-        let registry = super::builtin::create_builtin_registry();
+        let mut registry = super::builtin::create_builtin_registry();
+
+        // 加载用户自定义主题
+        Self::load_user_themes(&mut registry);
+
         let current_theme = registry
             .get("Default Dark")
             .expect("Default Dark theme should exist");
@@ -30,6 +35,28 @@ impl ThemeManager {
         Self {
             registry,
             current_theme,
+        }
+    }
+
+    /// 加载用户自定义主题
+    fn load_user_themes(registry: &mut ThemeRegistry) {
+        // 确保主题目录存在
+        let theme_dir = match ThemeLoader::ensure_theme_directory() {
+            Ok(dir) => dir,
+            Err(e) => {
+                warn!("Failed to create theme directory: {}", e);
+                return;
+            }
+        };
+
+        info!("Loading user themes from: {}", theme_dir.display());
+
+        // 加载主题目录中的所有主题
+        let themes = ThemeLoader::load_from_directory(&theme_dir);
+
+        for theme in themes {
+            info!("Registering user theme: {}", theme.name());
+            registry.register(theme);
         }
     }
 

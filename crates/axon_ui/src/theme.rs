@@ -4,14 +4,15 @@
 
 pub mod builtin;
 pub mod context;
+pub mod loader;
 pub mod manager;
+pub mod theme_serde;
 
 use gpui::{Hsla, SharedString};
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// 主题外观模式
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Appearance {
     /// 浅色模式
     Light,

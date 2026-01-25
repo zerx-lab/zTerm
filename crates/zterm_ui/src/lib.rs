@@ -19,6 +19,6 @@ pub use components::{
     ScrollPageDown, ScrollPageUp, ScrollToBottom, ScrollToTop, ScrollUp, Search, SharedBounds,
     TabInfo, TerminalTabBar, TerminalView, TitleBar,
 };
-pub use elements::{ScrollbarElement, ScrollbarState, Selection, ThumbState};
+pub use elements::{ScrollbarElement, ScrollbarState, ThumbState};
 pub use shell_integration::ContextMenuAction;
 pub use theme::TerminalTheme;

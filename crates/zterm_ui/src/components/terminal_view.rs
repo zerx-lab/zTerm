@@ -1,7 +1,7 @@
 //! Terminal view component
 
 use crate::components::{ContextMenuState, ContextMenuView};
-use crate::elements::{ScrollbarElement, ScrollbarState, Selection, TerminalElement};
+use crate::elements::{ScrollbarElement, ScrollbarState, TerminalElement};
 use crate::shell_integration::ContextMenuAction;
 use crate::theme::TerminalTheme;
 use gpui::*;
@@ -230,6 +230,15 @@ impl TerminalView {
                 self.selection_end = None;
                 self.is_selecting = false;
                 self.current_selection_type = None;
+
+                // Sync scroll_offset with terminal's display_offset after resize
+                // set_bounds already restored display_offset, now we sync scroll_offset to match
+                let display_offset = {
+                    let terminal = self.terminal.read(cx);
+                    terminal.content().display_offset
+                };
+                self.scroll_offset = display_offset;
+
                 // Force full re-render on resize
                 cx.notify();
             }
@@ -696,25 +705,9 @@ impl TerminalView {
         Some((col, row, side))
     }
 
-    /// Get the current selection as normalized (start, end) where start <= end
-    pub fn get_selection(&self) -> Option<Selection> {
-        match (self.selection_start, self.selection_end) {
-            (Some(start), Some(end)) if start != end => {
-                // Normalize so start is before end
-                let (start, end) = if (start.row, start.col) <= (end.row, end.col) {
-                    (start, end)
-                } else {
-                    (end, start)
-                };
-                Some(Selection {
-                    start_col: start.col,
-                    start_row: start.row,
-                    end_col: end.col,
-                    end_row: end.row,
-                })
-            }
-            _ => None,
-        }
+    /// Check if there is an active selection
+    pub fn has_selection(&self, cx: &Context<Self>) -> bool {
+        self.terminal.read(cx).content().selection.is_some()
     }
 
     /// Clear the current selection
@@ -732,7 +725,7 @@ impl TerminalView {
         self.context_menu = None;
 
         // 检查是否有选择的文本
-        let has_selection = self.get_selection().is_some();
+        let has_selection = self.has_selection(cx);
 
         // 创建菜单
         let terminal_view = cx.entity().clone();
@@ -983,20 +976,9 @@ impl Render for TerminalView {
         let visible_lines = content.screen_lines;
         let max_scroll = content.history_size;
 
-        // Get current selection from alacritty's SelectionRange
-        // This ensures double-click (word) and triple-click (line) selections work correctly
-        let selection = content.selection.map(|sel| {
-            let display_offset = content.display_offset as i32;
-            // Convert terminal coordinates to visual coordinates
-            let start_row = (sel.start.line.0 + display_offset).max(0) as usize;
-            let end_row = (sel.end.line.0 + display_offset).max(0) as usize;
-            Selection {
-                start_col: sel.start.column.0,
-                start_row,
-                end_col: sel.end.column.0,
-                end_row,
-            }
-        });
+        // Pass through alacritty's SelectionRange directly (in terminal coordinates)
+        // The TerminalElement will handle coordinate conversion during rendering
+        let selection = content.selection;
 
         // Create scrollbar element with callback
         let terminal_view = cx.entity().clone();

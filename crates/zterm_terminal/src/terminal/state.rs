@@ -43,6 +43,7 @@ impl Default for TerminalSize {
 }
 
 /// Terminal bounds with cell dimensions
+/// Note: scrollback_lines is configured separately in Terminal, not in bounds
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TerminalBounds {
     pub cell_width: Pixels,
@@ -85,6 +86,14 @@ impl TerminalBounds {
 }
 
 impl Dimensions for TerminalBounds {
+    /// Returns the total number of lines in the terminal grid.
+    ///
+    /// IMPORTANT: Following Zed's approach, we return only screen_lines() here,
+    /// NOT screen_lines + scrollback. This prevents alacritty from clearing
+    /// history when the window is resized larger.
+    ///
+    /// Alacritty uses a separate internal scrollback buffer (max_scroll_limit)
+    /// that is configured via Config, not through this Dimensions trait.
     fn total_lines(&self) -> usize {
         self.screen_lines()
     }
@@ -263,7 +272,7 @@ impl Terminal {
         // Create terminal bounds
         let bounds = TerminalBounds::default();
 
-        // Create alacritty terminal
+        // Create alacritty terminal with scrollback configured via Config
         let term = Term::new(config, &bounds, listener.clone());
         let term = Arc::new(FairMutex::new(term));
 
@@ -535,6 +544,20 @@ impl Terminal {
             self.current_line = content.cursor.point.line.0 as usize + history_size;
             self.shell_handler.set_current_line(self.current_line);
 
+            // Debug: check cell line range
+            let mut min_line = i32::MAX;
+            let mut max_line = i32::MIN;
+            for cell in &cells {
+                min_line = min_line.min(cell.point.line.0);
+                max_line = max_line.max(cell.point.line.0);
+            }
+            if !cells.is_empty() {
+                eprintln!(
+                    "[sync_content] Got {} cells, line range: {} to {}, display_offset: {}, history_size: {}",
+                    cells.len(), min_line, max_line, content.display_offset, history_size
+                );
+            }
+
             (
                 content.mode,
                 content.display_offset,
@@ -738,7 +761,19 @@ impl Terminal {
         // Resize alacritty term
         {
             let mut term = self.term.lock();
+            eprintln!(
+                "[resize] Before resize - total_lines: {}, screen_lines: {}, history_size: {}",
+                term.grid().total_lines(),
+                term.grid().screen_lines(),
+                term.history_size()
+            );
             term.resize(bounds);
+            eprintln!(
+                "[resize] After resize - total_lines: {}, screen_lines: {}, history_size: {}",
+                term.grid().total_lines(),
+                term.grid().screen_lines(),
+                term.history_size()
+            );
         }
 
         // Notify PTY of resize
@@ -754,27 +789,49 @@ impl Terminal {
     }
 
     /// Set terminal bounds (for rendering calculations)
+    ///
+    /// Following Zed's approach: only resize when bounds actually change.
+    /// The PartialEq check on TerminalBounds prevents unnecessary resizes.
     pub fn set_bounds(&mut self, bounds: TerminalBounds) {
+        // Check if bounds actually changed (防抖 - debounce)
+        if self.last_content.terminal_bounds == bounds {
+            return;
+        }
+
         self.last_content.terminal_bounds = bounds;
 
-        let cols = bounds.num_columns() as u16;
-        let rows = bounds.num_lines() as u16;
+        let new_cols = bounds.num_columns() as u16;
+        let new_rows = bounds.num_lines() as u16;
 
-        if cols > 0 && rows > 0 && (cols != self.size.cols || rows != self.size.rows) {
-            self.size = TerminalSize { cols, rows };
-
-            {
-                let mut term = self.term.lock();
-                term.resize(bounds);
-            }
-
-            if let Some(ref pty_tx) = self.pty_tx {
-                let _ = pty_tx.0.send(PtyMsg::Resize(bounds.into()));
-            }
-
-            // Force immediate content sync after resize
-            self.sync_content();
+        if new_cols == 0 || new_rows == 0 {
+            return;
         }
+
+        // Only resize if the logical size actually changed
+        if new_cols == self.size.cols && new_rows == self.size.rows {
+            return;
+        }
+
+        eprintln!(
+            "[set_bounds] Resizing: {}x{} -> {}x{}",
+            self.size.rows, self.size.cols, new_rows, new_cols
+        );
+
+        self.size = TerminalSize { cols: new_cols, rows: new_rows };
+
+        // Resize terminal
+        {
+            let mut term = self.term.lock();
+            term.resize(bounds);
+        }
+
+        // Notify PTY
+        if let Some(ref pty_tx) = self.pty_tx {
+            let _ = pty_tx.0.send(PtyMsg::Resize(bounds.into()));
+        }
+
+        // Sync content
+        self.sync_content();
     }
 
     /// Get the last rendered content
