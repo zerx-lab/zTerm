@@ -1,335 +1,298 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## 项目概述
 
-zTerm 是一个使用 Rust 和 GPUI 框架构建的现代跨平台终端模拟器。基于 Zed 编辑器的 UI 框架,集成了 Alacritty 的终端核心。
+zTerm 是一个使用 Rust 和 GPUI 框架构建的现代跨平台终端模拟器。
+
+**当前状态**:
+- ✅ 终端核心 (`zterm_terminal`) - PTY 管理、VTE 解析、Shell Integration
+- ✅ 主题系统 (`axon_ui`) - 5 个内置主题 + 自定义主题热重载
+- ✅ UI 框架 (`z_term`, `zterm_ui`) - 标题栏、标签栏、窗口管理
+- ⏳ **待集成**: 将终端核心连接到 UI 渲染
 
 ## 核心要求
 
 - **语言**: 所有交互使用中文简体
-- **验证方式**: 使用 `cargo check` 而非 `cargo build` 进行快速验证
-- **Zed 源码路径**: C:\Users\zero\Desktop\code\github\zed
-- **wezterm 源码路径**: C:\Users\zero\Desktop\code\github\wezterm
+- **可利用能力**: 充分利用已知skills和各种mcp能力
+- **Rust能力**: 充分使用Rust skills
+- **任务规划**: 充分使用task进行规划和执行任务,每次执行前需要思考是否需要设计task,并且需要检查是否存在未完成task,对于不理解的地方需要停下来询问
+- **单元测试**: 每个task或者todo完成需要编写对应的单元测试进行验证,并且单元测试需要完全考虑各种边界与功能,而不是单纯的写完代码和测试通过
+- **验证**: 使用 `cargo check` 进行快速验证
+- **参考源码**:
+  - Zed: `C:\Users\zero\Desktop\code\github\zed` (GPUI 用法)
+  - WezTerm: `C:\Users\zero\Desktop\code\github\wezterm` (计划中的迁移目标)
 
-## 开发命令
+## 常用命令
 
 ### 编译和运行
 ```bash
-# 快速检查编译错误 (推荐用于验证)
+# 快速检查 (推荐)
 cargo check --workspace --all-targets --all-features
 
-# 开发模式运行
+# 运行主应用
 cargo run -p z_term
 
-# Release 模式运行
-cargo run -p z_term --release
-
-# 构建 Release 版本
-cargo build --release
-
-# 构建带调试信息的 Release 版本
-cargo build --profile release-with-debug
+# 运行终端核心示例
+cargo run --example basic -p zterm_terminal
 ```
 
 ### 代码质量
 ```bash
-# 代码格式化
-cargo fmt --all
-
-# 格式检查 (不修改代码)
-cargo fmt --all -- --check
-
-# Clippy 静态分析
-cargo clippy --workspace --all-targets --all-features
-
-# 严格模式 Clippy
-cargo clippy --workspace --all-targets --all-features -- \
-  -D warnings \
-  -W clippy::all \
-  -W clippy::pedantic \
-  -W clippy::nursery \
-  -W clippy::cargo
+cargo fmt --all                    # 格式化
+cargo clippy --workspace          # 静态分析
 ```
 
 ### 测试
 ```bash
-# 运行所有测试
 cargo test --workspace --all-features
-
-# 运行特定 crate 的测试
-cargo test -p zterm_terminal
-cargo test -p zterm_ui
-cargo test -p axon_ui
-
-# 带详细输出的测试
-cargo test --workspace --all-features -- --nocapture
-
-# 生成测试覆盖率 (需要 cargo-llvm-cov)
-cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info
+cargo test -p zterm_terminal       # 测试特定 crate
 ```
 
-### 依赖管理
-```bash
-# 检查安全漏洞和许可证 (需要 cargo-deny)
-cargo deny check advisories
-cargo deny check licenses
-cargo deny check sources
-cargo deny check bans
-
-# 检测未使用的依赖 (需要 cargo-machete)
-cargo machete
-```
-
-### 文档
-```bash
-# 生成文档 (包括私有项)
-cargo doc --workspace --all-features --no-deps --document-private-items
-
-# 生成并打开文档
-cargo doc --workspace --all-features --no-deps --document-private-items --open
-```
-
-## 代码架构
-
-### Workspace 结构
-
-zTerm 使用 Cargo workspace 管理多个 crate,各 crate 职责明确:
+## Workspace 结构
 
 ```
 crates/
-├── z_term/          - 应用入口,窗口管理,workspace 管理
-├── zterm_terminal/  - 终端核心引擎 (PTY, VT 解析, shell 集成)
-├── zterm_ui/        - UI 组件 (TerminalView, TitleBar, TabBar, Scrollbar)
-├── zterm_input/     - 输入处理 (keybindings, history, completion)
-├── zterm_common/    - 公共工具 (配置, 日志, 错误处理)
-└── axon_ui/         - 主题系统 (颜色管理, 内置主题, 热重载)
+├── z_term/          - 应用入口、窗口管理、workspace
+├── zterm_terminal/  - ✅ 终端核心 (PTY, VTE, 事件, Shell Integration)
+├── zterm_ui/        - UI 组件 (TitleBar, TabBar)
+├── zterm_common/    - 公共工具 (配置热重载、日志、错误)
+└── axon_ui/         - 主题系统
 ```
 
-### 关键架构组件
-
-#### 1. 终端核心 (`zterm_terminal`)
-
-- **Terminal Entity**: 终端状态管理,基于 GPUI 的 Entity 系统
-- **PtyEventLoop**: 自定义 PTY 事件循环,扩展 Alacritty 的实现
-  - 集成 OSC 133/633 扫描器用于 shell 集成
-  - 支持事件批处理 (4ms 间隔) 降低 UI 刷新频率
-  - 使用 `polling` crate 处理 PTY I/O
-- **Shell Integration**: VSCode shell integration 支持
-  - OscScanner: 扫描 OSC 133/633 序列
-  - ZoneInfo: 跟踪命令执行区域 (prompt/command/output)
-  - 支持右键菜单、AI 上下文提取等功能
-
-#### 2. UI 组件 (`zterm_ui`)
-
-- **TerminalView**: 主终端视图组件
-  - 管理滚动状态、文本选择、IME 输入
-  - 使用 TerminalElement 进行 GPU 渲染
-  - 输入批处理 (4ms 间隔) 优化性能
-  - 集成 ScrollbarElement 和 ContextMenu
-- **TitleBar**: 自定义标题栏,跨平台窗口控制
-- **TerminalTabBar**: 标签页管理 (新建、关闭、切换)
-- **TerminalElement**: 低级渲染元素,使用 GPUI 的 paint API
-
-#### 3. 主题系统 (`axon_ui`)
-
-- **ThemeManager**: 全局主题管理器
-  - 启动时自动加载用户自定义主题
-  - 内置 5 个主题 (Default Dark, GitHub Dark/Light, Tokyo Night/Light)
-  - 用户主题目录: `~/.config/zterm/themes/` (Linux/macOS) 或 `%APPDATA%\zterm\themes\` (Windows)
-- **ThemeLoader**: 主题加载器
-  - 支持从 JSON 文件加载主题
-  - 支持三种颜色格式:HEX、RGBA 数组、HSLA 对象
-  - 自动扫描主题目录并加载所有 `.json` 文件
-- **ThemeContext**: GPUI 全局上下文,提供主题访问
-- **Theme**: 完整的颜色定义
-  - TerminalColors: 终端特定颜色 (background, foreground, cursor)
-  - TerminalAnsiColors: 完整 ANSI 16 色
-  - ThemeColors: UI 组件颜色 (titlebar, tabbar, menu 等)
-
-#### 4. Workspace 管理 (`z_term`)
-
-- **Workspace**: 管理多个终端标签页
-  - TabInfo: 封装 TerminalView + Terminal entity
-  - 标签生命周期管理 (创建、关闭、切换)
-  - 默认终端尺寸管理
-- **ZTermApp**: 应用入口
-  - GPUI Application 初始化
-  - 设置热重载
-  - 窗口生命周期管理
-
-### 核心依赖关系
-
+**依赖关系**:
 ```
-z_term (入口)
-  ├── zterm_ui (UI 组件)
-  │   ├── zterm_terminal (终端核心)
-  │   └── axon_ui (主题)
-  ├── zterm_terminal
-  ├── zterm_input
-  ├── zterm_common
-  └── axon_ui
-
-外部核心依赖:
-- gpui: Zed 的 UI 框架 (Git 依赖)
-- gpui-component: UI 组件库 (Git 依赖)
-- alacritty_terminal: 终端模拟 (VT 解析)
-- portable-pty: 跨平台 PTY 支持
+z_term
+  ├── zterm_terminal (终端核心)
+  ├── zterm_ui (UI) → axon_ui (主题)
+  └── zterm_common (配置、日志)
 ```
 
-### 配置系统
+## 核心架构
 
-- **位置**: `~/.config/zterm/config.toml`
-- **AppSettings**: GPUI 全局设置,支持热重载
-- **配置热重载**: 使用 `notify` crate 监听文件变化
-- **主题切换**: 修改 `[ui] theme = "主题名"` 后自动重载
+### 1. 终端核心 (`zterm_terminal`)
 
-### 日志系统
+**主要文件**:
+- `terminal.rs` - Terminal 实例,管理 PTY、VTE 解析器、事件
+- `pty/mod.rs` - PTY 系统初始化、Shell 检测
+- `pty/event_loop.rs` - PTY 读写循环
+- `vte_bridge.rs` - VTE Performer,处理转义序列
+- `shell_integration/scanner.rs` - OSC 133/531/7 序列解析
+- `event.rs` - TerminalEvent 定义
 
-- **位置**: `~/.local/share/zterm/logs/` (或 Windows: `AppData/Local/zterm/logs/`)
-- **LogGuard**: 管理文件和控制台日志
-- **启动性能追踪**: 使用 `mark_phase()` 和 `log_startup_phases()`
+**关键 API**:
+```rust
+// 创建终端
+let terminal = Terminal::new(pty_config, term_config)?;
 
-## 开发约定
+// 写入数据
+terminal.write(b"echo hello\n")?;
 
-### GPUI 模式
-
-1. **Entity 系统**: Terminal, TerminalView 等都是 GPUI Entity
-2. **Context 类型**:
-   - `Context<T>`: Entity 上下文
-   - `WindowContext`: 窗口上下文
-   - `AppContext`: 应用全局上下文
-3. **事件订阅**: 使用 `cx.subscribe()` 订阅 Entity 事件
-4. **通知更新**: `cx.notify()` 触发 UI 重绘
-
-### 终端渲染流程
-
-1. PtyEventLoop 从 PTY 读取数据
-2. OscScanner 扫描 shell integration 序列
-3. VTE parser 解析 ANSI 转义序列,更新 Term 状态
-4. TerminalEvent 通过 EventListener 发送到 TerminalView
-5. TerminalView 触发重绘,TerminalElement 执行 GPU 渲染
-
-### 输入处理流程
-
-1. GPUI KeyDown/KeyUp/Input 事件
-2. TerminalView 批处理输入 (4ms 间隔)
-3. 通过 PtyEventLoop 发送 Msg::Input
-4. PtyEventLoop 写入 PTY
-5. Shell 接收并处理输入
-
-### 测试策略
-
-- **单元测试**: 每个 crate 的 `tests/` 目录或 `#[cfg(test)]` 模块
-- **集成测试**: `z_term/tests/`
-- **主题测试**: `axon_ui/src/theme/tests.rs` 验证颜色定义
-
-## 常见任务
-
-### 添加新主题
-
-#### 方式一:创建 JSON 主题文件 (推荐)
-
-1. 在主题目录创建 `.json` 文件:
-   - Linux/macOS: `~/.config/zterm/themes/my-theme.json`
-   - Windows: `%APPDATA%\zterm\themes\my-theme.json`
-2. 参考 `examples/themes/` 中的示例编写主题
-3. 支持三种颜色格式:
-   - HEX: `"#282c34"`
-   - RGBA: `[40, 44, 52, 1.0]`
-   - HSLA: `{"h": 220, "s": 0.13, "l": 0.18, "a": 1.0}`
-4. 在 `config.toml` 中设置 `theme = "你的主题名称"`
-
-示例主题:
-```json
-{
-  "name": "My Custom Theme",
-  "appearance": "Dark",
-  "colors": {
-    "background": "#282c34",
-    "text": "#abb2bf",
-    "terminal": {
-      "background": "#282c34",
-      "foreground": "#abb2bf",
-      "ansi": { ... }
+// 监听事件
+let rx = terminal.event_receiver();
+while let Ok(event) = rx.recv() {
+    match event {
+        TerminalEvent::Wakeup => { /* 重绘 */ }
+        TerminalEvent::TitleChanged(title) => { /* 更新标题 */ }
+        // ...
     }
-  }
+}
+
+// Resize
+terminal.resize(TerminalSize::new(24, 80))?;
+```
+
+### 2. 主题系统 (`axon_ui`)
+
+- **ThemeManager** (Global): 管理内置和自定义主题
+- **ThemeContext**: `cx.current_theme()` 获取当前主题
+- **ThemeLoader**: 从 `~/.config/zterm/themes/*.json` 加载
+- **内置主题**: Default Dark, GitHub Dark/Light, Tokyo Night/Light
+
+### 3. 配置系统 (`zterm_common`)
+
+- **AppSettings** (GPUI Global): 配置热重载
+- **Config**: `~/.config/zterm/config.toml`
+  ```toml
+  [ui]
+  theme = "Default Dark"
+
+  [terminal]
+  font_size = 14.0
+  scrollback_lines = 10000
+  ```
+- **LogGuard**: 日志到 `~/.local/share/zterm/logs/` (Unix) 或 `%LOCALAPPDATA%\zterm\logs\` (Windows)
+
+### 4. UI 层 (`z_term`, `zterm_ui`)
+
+**当前实现**:
+- `Workspace` Entity: 管理标签页
+- `MainWindow`: 渲染标题栏、标签栏
+- `TitleBar`, `TerminalTabBar`: UI 组件
+
+**⚠️ 待实现**:
+- `TerminalView` 组件: 渲染终端内容
+- 将 `Terminal` 实例集成到 `Workspace`
+- 处理键盘/鼠标输入到 PTY
+
+## GPUI 核心模式
+
+### Entity 系统
+```rust
+// Workspace 是 GPUI Entity
+let workspace = cx.new(|cx| Workspace::new(cx));
+
+// 通过 Context<T> 访问
+impl Workspace {
+    fn add_tab(&mut self, cx: &mut Context<Self>) {
+        self.tabs.push(...);
+        cx.notify();  // 触发重绘
+    }
 }
 ```
 
-完整文档见: `examples/themes/README.md`
+### Global 系统
+```rust
+// 初始化
+cx.set_global(ThemeManager::new());
 
-#### 方式二:添加内置主题
+// 访问
+let theme = cx.global::<ThemeManager>().current_theme();
 
-1. 在 `axon_ui/src/theme/builtin.rs` 定义新主题
-2. 注册到 `builtin::create_builtin_registry()`
-3. 运行 `cargo test -p axon_ui` 验证
+// 更新
+cx.update_global::<ThemeManager, _>(|mgr, cx| {
+    mgr.set_theme("Tokyo Night");
+    cx.refresh_windows();
+});
+```
 
-### 修改快捷键
+### Context 类型
+- `App`: 全局应用上下文
+- `Window`: 窗口上下文,用于 UI 渲染
+- `Context<T>`: Entity 上下文,结合 Window + Entity 状态
 
-1. 编辑 `~/.config/zterm/config.toml` 的 `[keybindings]` 部分
-2. 或在代码中修改 `z_term/src/window/main_window.rs` 的 action 绑定
+## 当前开发优先级
 
-### 添加新 UI 组件
+### 🔥 最优先: 集成终端核心到 UI
 
-1. 在 `zterm_ui/src/components/` 创建新组件
-2. 实现 `Render` trait
-3. 在 `components/mod.rs` 导出
-4. 在需要的地方集成 (如 TerminalView 或 Workspace)
+**Step 1**: 创建 `TerminalView` 组件
+```rust
+// crates/zterm_ui/src/components/terminal_view.rs
+pub struct TerminalView {
+    terminal: Arc<Terminal>,
+    // ... 渲染状态
+}
 
-### 调试终端解析问题
+impl Render for TerminalView {
+    fn render(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        // 从 terminal 读取内容并渲染
+    }
+}
+```
 
-1. 查看日志: 日志文件在 `~/.local/share/zterm/logs/`
-2. 启用 VT 解析日志: 在 `zterm_terminal/src/terminal/pty_loop.rs` 添加 trace 日志
-3. 使用 `RUST_LOG=trace cargo run -p z_term` 运行
+**Step 2**: 修改 `Workspace`
+```rust
+// crates/z_term/src/workspace/mod.rs
+pub struct Workspace {
+    tabs: Vec<TabInfo>,
+    terminals: HashMap<TabId, Arc<Terminal>>,  // 新增
+    // ...
+}
+
+impl Workspace {
+    fn new_tab(&mut self, cx: &mut Context<Self>) {
+        let terminal = Terminal::new(pty_config, term_config).unwrap();
+        // 监听事件
+        // 添加到 terminals map
+    }
+}
+```
+
+**Step 3**: 替换占位符
+```rust
+// crates/z_term/src/window/main_window.rs
+// 将占位符 div() 替换为 TerminalView::new(terminal)
+```
+
+## 技术栈
+
+**核心**:
+- Rust 1.85+ (Edition 2024)
+- GPUI (Git: zed-industries/zed)
+- gpui-component (Git: longbridge/gpui-component)
+
+**终端**:
+- portable-pty 0.9.0 - 跨平台 PTY
+- vte 0.15.0 - VT 解析
+- alacritty_terminal 0.25 (⚠️ 计划迁移到 WezTerm,见 `MIGRATION_TO_WEZTERM.md`)
+
+**异步**:
+- tokio 1.0, smol 2.0, flume 0.11
+
+**其他**:
+- notify 8.0 - 文件监听
+- tracing 0.1 - 日志
+- parking_lot 0.12 - 同步原语
+
+## Shell Integration
+
+**协议**: OSC 133/531/7
+
+**示例脚本**: `examples/shell-integration/zterm-integration.ps1`
+
+**测试**:
+```powershell
+. .\examples\shell-integration\zterm-integration.ps1
+# 执行命令会发送 OSC 序列
+```
+
+**文档**: `examples/shell-integration/README.md`
 
 ## 平台特定
 
 ### Windows
-- 使用 ConPTY (platform/windows.rs)
-- 窗口子系统: Release 构建时使用 `windows_subsystem = "windows"`
-- 图标: build.rs 使用 winresource 嵌入图标
+- 配置: `%APPDATA%\zterm\config.toml`
+- 主题: `%APPDATA%\zterm\themes\`
+- 日志: `%LOCALAPPDATA%\zterm\logs\`
+- Release 构建隐藏控制台窗口
 
-### Unix (Linux/macOS)
-- 使用 PTY (platform/unix.rs)
-- Shell 检测: 读取 `$SHELL` 环境变量
+### Linux/macOS
+- 配置: `~/.config/zterm/config.toml`
+- 主题: `~/.config/zterm/themes/`
+- 日志: `~/.local/share/zterm/logs/`
+- Linux 依赖: `libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev`
 
-### Linux 额外依赖
+## 开发约定
+
+- **GPUI 技能**: 参考 `.claude/skills/gpui-*` 目录
+- **组件创建**: 使用 `/new-component` skill
+- **代码风格**: 使用 `/gpui-style-guide` skill
+- **测试**: 添加单元测试和示例
+- **文档**: 为新功能添加注释和 README
+
+## 调试
+
+### 查看日志
 ```bash
-sudo apt-get install -y libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev
+# Unix
+tail -f ~/.local/share/zterm/logs/zterm-*.log
+
+# Windows
+Get-Content "$env:LOCALAPPDATA\zterm\logs\zterm-*.log" -Wait
 ```
 
-## CI/CD
-
-GitHub Actions workflow 位于 `.github/workflows/`:
-
-### 自动化流程
-- `release.yml`: 发布构建流程
-
-### Claude 集成
-- `claude.yml`: 通过 `@claude` 提及触发的通用 Claude 助手
-- `claude-code-review.yml`: PR 代码自动审查
-
-### 本地开发检查
-推荐在提交前本地运行以下命令确保代码质量：
+### 启用详细日志
 ```bash
-# 代码格式检查
-cargo fmt --all -- --check
-
-# 静态分析
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-
-# 运行测试
-cargo test --workspace --all-features
-
-# 快速编译检查
-cargo check --workspace --all-targets --all-features
+RUST_LOG=debug cargo run -p z_term
+RUST_LOG=zterm_terminal=trace cargo run -p z_term
 ```
 
-## 技术栈版本
+### 性能分析
+启动性能追踪已内置,查看日志中的 "Startup phases" 输出。
 
-- Rust: 1.85+ (Edition 2024)
-- GPUI: Git
-- Alacritty Terminal: 0.25
-- Portable PTY: 0.8
+## 相关文档
 
-## 许可证
-
-CC BY-NC-SA-4.0 (非商业使用)
+- `README.md` - 项目介绍和功能说明
+- `examples/themes/README.md` - 主题创建指南
+- `.claude/skills/` - GPUI 开发技能文档
