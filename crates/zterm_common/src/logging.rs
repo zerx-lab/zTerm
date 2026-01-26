@@ -3,14 +3,14 @@
 //! This module provides logging functionality with both console and file output.
 //! Logs are saved to the same directory as the configuration file.
 
-use crate::config::Config;
 use crate::Result;
+use crate::config::Config;
 use parking_lot::RwLock;
 use std::path::PathBuf;
 use std::time::Instant;
 use tracing::info;
 use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Global startup timer for measuring application startup time
 static STARTUP_TIMER: RwLock<Option<StartupTimer>> = RwLock::new(None);

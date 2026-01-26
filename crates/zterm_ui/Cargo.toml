@@ -9,7 +9,6 @@ description = "UI components for zTerm"
 
 [dependencies]
 zterm_common.workspace = true
-zterm_terminal.workspace = true
 axon_ui.workspace = true
 
 # GPUI
@@ -23,7 +22,6 @@ smol.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 parking_lot.workspace = true
-unicode-width.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 dirs.workspace = true
@@ -32,17 +30,3 @@ dirs.workspace = true
 windows.workspace = true
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
-
-# Note: ui_benchmarks removed due to Selection type removal
-# [[bench]]
-# name = "ui_benchmarks"
-# harness = false
-
-[[bench]]
-name = "title_bar_bench"
-harness = false
-
-[[bench]]
-name = "shell_integration_ui_bench"
-harness = false

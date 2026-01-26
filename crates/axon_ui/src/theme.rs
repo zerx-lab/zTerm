@@ -32,58 +32,6 @@ impl Appearance {
     }
 }
 
-/// 终端 ANSI 颜色
-#[derive(Debug, Clone, PartialEq)]
-pub struct TerminalAnsiColors {
-    /// 黑色
-    pub black: Hsla,
-    /// 红色
-    pub red: Hsla,
-    /// 绿色
-    pub green: Hsla,
-    /// 黄色
-    pub yellow: Hsla,
-    /// 蓝色
-    pub blue: Hsla,
-    /// 品红色
-    pub magenta: Hsla,
-    /// 青色
-    pub cyan: Hsla,
-    /// 白色
-    pub white: Hsla,
-    /// 亮黑色 (灰色)
-    pub bright_black: Hsla,
-    /// 亮红色
-    pub bright_red: Hsla,
-    /// 亮绿色
-    pub bright_green: Hsla,
-    /// 亮黄色
-    pub bright_yellow: Hsla,
-    /// 亮蓝色
-    pub bright_blue: Hsla,
-    /// 亮品红色
-    pub bright_magenta: Hsla,
-    /// 亮青色
-    pub bright_cyan: Hsla,
-    /// 亮白色
-    pub bright_white: Hsla,
-}
-
-/// 终端颜色
-#[derive(Debug, Clone, PartialEq)]
-pub struct TerminalColors {
-    /// 终端背景色
-    pub background: Hsla,
-    /// 终端前景色 (默认文本颜色)
-    pub foreground: Hsla,
-    /// 光标颜色
-    pub cursor: Hsla,
-    /// 选中文本背景色
-    pub selection_background: Hsla,
-    /// ANSI 颜色
-    pub ansi: TerminalAnsiColors,
-}
-
 /// 主题颜色
 #[derive(Debug, Clone, PartialEq)]
 pub struct ThemeColors {
@@ -101,8 +49,6 @@ pub struct ThemeColors {
     pub text_muted: Hsla,
     /// 占位符文本颜色
     pub text_placeholder: Hsla,
-    /// 终端颜色
-    pub terminal: TerminalColors,
 
     // 图标颜色
     /// 默认图标颜色
@@ -187,7 +133,7 @@ impl Theme {
 }
 
 /// 主题注册表
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ThemeRegistry {
     themes: Vec<Arc<Theme>>,
 }
@@ -195,9 +141,7 @@ pub struct ThemeRegistry {
 impl ThemeRegistry {
     /// 创建新的主题注册表
     pub fn new() -> Self {
-        Self {
-            themes: Vec::new(),
-        }
+        Self::default()
     }
 
     /// 注册主题
@@ -227,12 +171,3 @@ impl ThemeRegistry {
             .collect()
     }
 }
-
-impl Default for ThemeRegistry {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests;

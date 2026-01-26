@@ -2,7 +2,7 @@
 //!
 //! 支持从 JSON 文件加载主题配置
 
-use super::{Appearance, TerminalAnsiColors, TerminalColors, Theme, ThemeColors};
+use super::{Appearance, Theme, ThemeColors};
 use gpui::Hsla;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -21,12 +21,7 @@ pub enum SerializableColor {
     /// RGBA 数组: [r, g, b, a]
     Rgba([f32; 4]),
     /// HSLA 对象
-    Hsla {
-        h: f32,
-        s: f32,
-        l: f32,
-        a: f32,
-    },
+    Hsla { h: f32, s: f32, l: f32, a: f32 },
 }
 
 /// 颜色解析错误
@@ -97,7 +92,7 @@ impl SerializableColor {
             _ => {
                 return Err(ColorParseError::InvalidHex(
                     "HEX color must be 6 or 8 characters".into(),
-                ))
+                ));
             }
         };
 
@@ -114,9 +109,12 @@ impl SerializableColor {
     /// 解析 RGBA 数组
     fn parse_rgba(rgba: &[f32; 4]) -> Result<Hsla, ColorParseError> {
         // 验证 RGB 值在 0-255 范围内
-        if rgba[0] < 0.0 || rgba[0] > 255.0
-            || rgba[1] < 0.0 || rgba[1] > 255.0
-            || rgba[2] < 0.0 || rgba[2] > 255.0
+        if rgba[0] < 0.0
+            || rgba[0] > 255.0
+            || rgba[1] < 0.0
+            || rgba[1] > 255.0
+            || rgba[2] < 0.0
+            || rgba[2] > 255.0
         {
             return Err(ColorParseError::InvalidRgba(
                 "RGB values must be in range 0-255".into(),
@@ -140,107 +138,6 @@ impl SerializableColor {
     }
 }
 
-/// 可序列化的终端 ANSI 颜色
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SerializableTerminalAnsiColors {
-    pub black: SerializableColor,
-    pub red: SerializableColor,
-    pub green: SerializableColor,
-    pub yellow: SerializableColor,
-    pub blue: SerializableColor,
-    pub magenta: SerializableColor,
-    pub cyan: SerializableColor,
-    pub white: SerializableColor,
-    pub bright_black: SerializableColor,
-    pub bright_red: SerializableColor,
-    pub bright_green: SerializableColor,
-    pub bright_yellow: SerializableColor,
-    pub bright_blue: SerializableColor,
-    pub bright_magenta: SerializableColor,
-    pub bright_cyan: SerializableColor,
-    pub bright_white: SerializableColor,
-}
-
-impl SerializableTerminalAnsiColors {
-    /// 转换为 GPUI TerminalAnsiColors
-    pub fn to_terminal_ansi_colors(&self) -> Result<TerminalAnsiColors, ColorParseError> {
-        Ok(TerminalAnsiColors {
-            black: self.black.to_hsla()?,
-            red: self.red.to_hsla()?,
-            green: self.green.to_hsla()?,
-            yellow: self.yellow.to_hsla()?,
-            blue: self.blue.to_hsla()?,
-            magenta: self.magenta.to_hsla()?,
-            cyan: self.cyan.to_hsla()?,
-            white: self.white.to_hsla()?,
-            bright_black: self.bright_black.to_hsla()?,
-            bright_red: self.bright_red.to_hsla()?,
-            bright_green: self.bright_green.to_hsla()?,
-            bright_yellow: self.bright_yellow.to_hsla()?,
-            bright_blue: self.bright_blue.to_hsla()?,
-            bright_magenta: self.bright_magenta.to_hsla()?,
-            bright_cyan: self.bright_cyan.to_hsla()?,
-            bright_white: self.bright_white.to_hsla()?,
-        })
-    }
-
-    /// 从 TerminalAnsiColors 创建
-    pub fn from_terminal_ansi_colors(ansi: &TerminalAnsiColors) -> Self {
-        Self {
-            black: SerializableColor::from_hsla(ansi.black),
-            red: SerializableColor::from_hsla(ansi.red),
-            green: SerializableColor::from_hsla(ansi.green),
-            yellow: SerializableColor::from_hsla(ansi.yellow),
-            blue: SerializableColor::from_hsla(ansi.blue),
-            magenta: SerializableColor::from_hsla(ansi.magenta),
-            cyan: SerializableColor::from_hsla(ansi.cyan),
-            white: SerializableColor::from_hsla(ansi.white),
-            bright_black: SerializableColor::from_hsla(ansi.bright_black),
-            bright_red: SerializableColor::from_hsla(ansi.bright_red),
-            bright_green: SerializableColor::from_hsla(ansi.bright_green),
-            bright_yellow: SerializableColor::from_hsla(ansi.bright_yellow),
-            bright_blue: SerializableColor::from_hsla(ansi.bright_blue),
-            bright_magenta: SerializableColor::from_hsla(ansi.bright_magenta),
-            bright_cyan: SerializableColor::from_hsla(ansi.bright_cyan),
-            bright_white: SerializableColor::from_hsla(ansi.bright_white),
-        }
-    }
-}
-
-/// 可序列化的终端颜色
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SerializableTerminalColors {
-    pub background: SerializableColor,
-    pub foreground: SerializableColor,
-    pub cursor: SerializableColor,
-    pub selection_background: SerializableColor,
-    pub ansi: SerializableTerminalAnsiColors,
-}
-
-impl SerializableTerminalColors {
-    /// 转换为 GPUI TerminalColors
-    pub fn to_terminal_colors(&self) -> Result<TerminalColors, ColorParseError> {
-        Ok(TerminalColors {
-            background: self.background.to_hsla()?,
-            foreground: self.foreground.to_hsla()?,
-            cursor: self.cursor.to_hsla()?,
-            selection_background: self.selection_background.to_hsla()?,
-            ansi: self.ansi.to_terminal_ansi_colors()?,
-        })
-    }
-
-    /// 从 TerminalColors 创建
-    pub fn from_terminal_colors(terminal: &TerminalColors) -> Self {
-        Self {
-            background: SerializableColor::from_hsla(terminal.background),
-            foreground: SerializableColor::from_hsla(terminal.foreground),
-            cursor: SerializableColor::from_hsla(terminal.cursor),
-            selection_background: SerializableColor::from_hsla(terminal.selection_background),
-            ansi: SerializableTerminalAnsiColors::from_terminal_ansi_colors(&terminal.ansi),
-        }
-    }
-}
-
 /// 可序列化的主题颜色
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SerializableThemeColors {
@@ -251,7 +148,6 @@ pub struct SerializableThemeColors {
     pub text: SerializableColor,
     pub text_muted: SerializableColor,
     pub text_placeholder: SerializableColor,
-    pub terminal: SerializableTerminalColors,
     pub icon: SerializableColor,
     pub icon_muted: SerializableColor,
     pub danger: SerializableColor,
@@ -283,7 +179,6 @@ impl SerializableThemeColors {
             text: self.text.to_hsla()?,
             text_muted: self.text_muted.to_hsla()?,
             text_placeholder: self.text_placeholder.to_hsla()?,
-            terminal: self.terminal.to_terminal_colors()?,
             icon: self.icon.to_hsla()?,
             icon_muted: self.icon_muted.to_hsla()?,
             danger: self.danger.to_hsla()?,
@@ -315,7 +210,6 @@ impl SerializableThemeColors {
             text: SerializableColor::from_hsla(colors.text),
             text_muted: SerializableColor::from_hsla(colors.text_muted),
             text_placeholder: SerializableColor::from_hsla(colors.text_placeholder),
-            terminal: SerializableTerminalColors::from_terminal_colors(&colors.terminal),
             icon: SerializableColor::from_hsla(colors.icon),
             icon_muted: SerializableColor::from_hsla(colors.icon_muted),
             danger: SerializableColor::from_hsla(colors.danger),
@@ -331,7 +225,9 @@ impl SerializableThemeColors {
             statusbar_background: SerializableColor::from_hsla(colors.statusbar_background),
             menu_background: SerializableColor::from_hsla(colors.menu_background),
             menu_border: SerializableColor::from_hsla(colors.menu_border),
-            menu_item_hover_background: SerializableColor::from_hsla(colors.menu_item_hover_background),
+            menu_item_hover_background: SerializableColor::from_hsla(
+                colors.menu_item_hover_background,
+            ),
             menu_item_hover_text: SerializableColor::from_hsla(colors.menu_item_hover_text),
             menu_item_disabled_text: SerializableColor::from_hsla(colors.menu_item_disabled_text),
         }

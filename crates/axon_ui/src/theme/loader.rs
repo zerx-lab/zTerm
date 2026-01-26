@@ -2,8 +2,8 @@
 //!
 //! 从文件系统加载 JSON 主题文件
 
-use super::theme_serde::SerializableTheme;
 use super::Theme;
+use super::theme_serde::SerializableTheme;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tracing::{debug, error, info, warn};
@@ -62,7 +62,11 @@ impl ThemeLoader {
         let serializable: SerializableTheme = serde_json::from_str(&content)?;
         let theme = serializable.to_theme()?;
 
-        info!("Successfully loaded theme: {} from {}", theme.name(), path.display());
+        info!(
+            "Successfully loaded theme: {} from {}",
+            theme.name(),
+            path.display()
+        );
         Ok(theme)
     }
 
@@ -134,11 +138,12 @@ impl ThemeLoader {
 
     /// 确保主题目录存在
     pub fn ensure_theme_directory() -> Result<PathBuf, std::io::Error> {
-        let dir = Self::default_theme_directory()
-            .ok_or_else(|| std::io::Error::new(
+        let dir = Self::default_theme_directory().ok_or_else(|| {
+            std::io::Error::new(
                 std::io::ErrorKind::NotFound,
-                "Could not determine config directory"
-            ))?;
+                "Could not determine config directory",
+            )
+        })?;
 
         if !dir.exists() {
             info!("Creating theme directory: {}", dir.display());

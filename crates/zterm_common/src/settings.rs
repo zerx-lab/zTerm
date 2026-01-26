@@ -8,8 +8,8 @@ use gpui::{App, Global};
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use parking_lot::RwLock;
 use std::path::PathBuf;
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
+use std::sync::mpsc::{Receiver, Sender, channel};
 use tracing::{error, info, warn};
 
 /// Message sent from file watcher to main thread
@@ -272,22 +272,22 @@ mod tests {
         let config = settings.config();
 
         // Should have default values
-        assert_eq!(config.terminal.font_size, 14.0);
         assert_eq!(config.ui.theme, "dark");
-        assert_eq!(config.terminal.scrollback_lines, 10000);
+        assert_eq!(config.ui.window_width, 1200);
+        assert_eq!(config.ui.window_height, 800);
     }
 
     #[test]
     fn test_app_settings_with_config() {
         let mut custom_config = Config::default();
-        custom_config.terminal.font_size = 18.0;
         custom_config.ui.theme = "dracula".to_string();
+        custom_config.ui.opacity = 0.9;
 
         let settings = AppSettings::with_config(custom_config);
         let config = settings.config();
 
-        assert_eq!(config.terminal.font_size, 18.0);
         assert_eq!(config.ui.theme, "dracula");
+        assert_eq!(config.ui.opacity, 0.9);
     }
 
     #[test]
@@ -295,15 +295,15 @@ mod tests {
         let settings = AppSettings::new();
 
         // Verify initial state
-        assert_eq!(settings.config().terminal.font_size, 14.0);
+        assert_eq!(settings.config().ui.theme, "dark");
 
         // Update config
         let mut new_config = Config::default();
-        new_config.terminal.font_size = 20.0;
+        new_config.ui.theme = "light".to_string();
         settings.set_config(new_config);
 
         // Verify update
-        assert_eq!(settings.config().terminal.font_size, 20.0);
+        assert_eq!(settings.config().ui.theme, "light");
     }
 
     #[test]
@@ -313,7 +313,7 @@ mod tests {
         let config2 = settings.config();
 
         // Both should be independent clones
-        assert_eq!(config1.terminal.font_size, config2.terminal.font_size);
+        assert_eq!(config1.ui.theme, config2.ui.theme);
     }
 
     #[test]
@@ -326,11 +326,11 @@ mod tests {
         // Read from another thread
         let handle = thread::spawn(move || {
             let config = config_arc.read();
-            config.terminal.font_size
+            config.ui.window_width
         });
 
-        let font_size = handle.join().unwrap();
-        assert_eq!(font_size, 14.0);
+        let width = handle.join().unwrap();
+        assert_eq!(width, 1200);
     }
 
     #[test]
@@ -342,16 +342,6 @@ mod tests {
                 // Expected
             }
         }
-    }
-
-    #[test]
-    fn test_config_terminal_settings() {
-        let config = Config::default();
-
-        assert_eq!(config.terminal.font_family, "JetBrainsMono Nerd Font Mono");
-        assert_eq!(config.terminal.font_size, 14.0);
-        assert!(config.terminal.cursor_blink);
-        assert_eq!(config.terminal.cursor_style, "block");
     }
 
     #[test]
@@ -369,17 +359,11 @@ mod tests {
     fn test_config_modification() {
         let mut config = Config::default();
 
-        // Modify terminal settings
-        config.terminal.font_size = 16.0;
-        config.terminal.font_family = "Consolas".to_string();
-
         // Modify UI settings
         config.ui.theme = "nord".to_string();
         config.ui.opacity = 0.95;
 
         // Verify modifications
-        assert_eq!(config.terminal.font_size, 16.0);
-        assert_eq!(config.terminal.font_family, "Consolas");
         assert_eq!(config.ui.theme, "nord");
         assert_eq!(config.ui.opacity, 0.95);
     }

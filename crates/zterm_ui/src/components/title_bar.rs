@@ -6,7 +6,6 @@
 use axon_ui::ThemeContext;
 use gpui::{prelude::*, *};
 use gpui_component::h_flex;
-use std::path::Path;
 
 // Define simple actions for tab bar interactions
 actions!(title_bar, [NewTab]);
@@ -37,66 +36,12 @@ pub struct TabInfo {
     pub id: usize,
     pub title: String,
     pub active: bool,
-    pub shell_name: String,
-    /// Working directory path
-    pub working_directory: String,
-    /// Cached display directory name (computed once on creation)
-    display_name_cache: Option<String>,
 }
 
 impl TabInfo {
-    /// Create a new TabInfo with pre-computed display name for better performance
-    pub fn new(
-        id: usize,
-        title: String,
-        active: bool,
-        shell_name: String,
-        working_directory: String,
-    ) -> Self {
-        let display_name = Self::compute_display_directory(&working_directory);
-        Self {
-            id,
-            title,
-            active,
-            shell_name,
-            working_directory,
-            display_name_cache: Some(display_name),
-        }
-    }
-
-    /// Compute the display-friendly directory name
-    fn compute_display_directory(path: &str) -> String {
-        // Check if it's home directory
-        if let Some(home) = dirs::home_dir() {
-            if path == home.to_string_lossy().as_ref() {
-                return "~".to_string();
-            }
-            // Check if it starts with home directory
-            if let Ok(stripped) = Path::new(path).strip_prefix(&home) {
-                if stripped.as_os_str().is_empty() {
-                    return "~".to_string();
-                }
-                // Return ~/last_component format for subdirectories
-                if let Some(last) = stripped.file_name() {
-                    return format!("~/{}", last.to_string_lossy());
-                }
-            }
-        }
-
-        // Return last path component
-        Path::new(path)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| path.to_string())
-    }
-
-    /// Get a display-friendly directory name
-    /// Shows last directory component, or ~ for home directory
-    /// Uses cached value when available for better performance
-    pub fn display_directory(&self) -> String {
-        self.display_name_cache
-            .clone()
-            .unwrap_or_else(|| Self::compute_display_directory(&self.working_directory))
+    /// Create a new TabInfo
+    pub fn new(id: usize, title: String, active: bool) -> Self {
+        Self { id, title, active }
     }
 }
 
@@ -155,13 +100,13 @@ impl TitleBar {
     }
 
     /// Handle tab selection
-    fn on_select_tab(&mut self, tab_id: usize, cx: &mut Context<Self>) {
-        cx.emit(TitleBarEvent::SelectTab(tab_id));
+    fn on_select_tab(&mut self, tab_index: usize, cx: &mut Context<Self>) {
+        cx.emit(TitleBarEvent::SelectTab(tab_index));
     }
 
     /// Handle tab close
-    fn on_close_tab(&mut self, tab_id: usize, cx: &mut Context<Self>) {
-        cx.emit(TitleBarEvent::CloseTab(tab_id));
+    fn on_close_tab(&mut self, tab_index: usize, cx: &mut Context<Self>) {
+        cx.emit(TitleBarEvent::CloseTab(tab_index));
     }
 
     /// Handle new tab
@@ -271,121 +216,78 @@ impl Render for TitleBar {
                     .track_scroll(&self.scroll_handle)
                     .px_2()
                     .gap_1()
-                            .children(tabs.into_iter().map(|tab| {
-                                let tab_id = tab.id;
-                                let is_active = tab.active;
-                                let display_dir = tab.display_directory();
+                    .children(tabs.into_iter().enumerate().map(|(tab_index, tab)| {
+                        let tab_id = tab.id;
+                        let is_active = tab.active;
+                        let tab_title = tab.title.clone();
 
-                                // 使用主题颜色
-                                let bg_color = if is_active {
-                                    tab_active_bg
-                                } else {
-                                    tab_inactive_bg
-                                };
-                                let tab_text_color = if is_active {
-                                    text_color
-                                } else {
-                                    text_muted
-                                };
-                                let hover_bg = tab_hover_bg;
+                        // 使用主题颜色
+                        let bg_color = if is_active {
+                            tab_active_bg
+                        } else {
+                            tab_inactive_bg
+                        };
+                        let tab_text_color = if is_active { text_color } else { text_muted };
+                        let hover_bg = tab_hover_bg;
 
-                                div()
-                                    // Use NamedInteger for ~10x faster ElementId creation
-                                    .id(ElementId::NamedInteger("tab".into(), tab_id as u64))
-                                    .flex()
-                                    .flex_row()
-                                    .flex_shrink_0() // Prevent tabs from shrinking
-                                    .items_center()
-                                    .justify_between()
-                                    .h(px(28.0))
-                                    .min_w(TAB_MIN_WIDTH)
-                                    .max_w(TAB_MAX_WIDTH)
-                                    .px(px(10.0))
-                                    .rounded_t_md()
-                                    .bg(bg_color)
-                                    // Active tab indicator - subtle bottom border
-                                    .when(is_active, |el| {
-                                        el.border_b_2().border_color(tab_active_indicator)
-                                    })
-                                    .when(!is_active, |el| {
-                                        el.border_b_1().border_color(border_color)
-                                    })
-                                    .hover(|style| style.bg(hover_bg))
-                                    .cursor_pointer()
-                                    .block_mouse_except_scroll()
-                                    .on_mouse_down(
-                                        MouseButton::Left,
-                                        |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
-                                            window.prevent_default();
-                                            cx.stop_propagation();
-                                        },
-                                    )
-                                    .on_click(cx.listener(move |this, _: &ClickEvent, _window, cx| {
-                                        this.on_select_tab(tab_id, cx);
-                                    }))
-                                    // Directory path - takes most space
-                                    .child(
-                                        div()
-                                            .flex_1()
-                                            .text_sm()
-                                            .text_color(tab_text_color)
-                                            .truncate()
-                                            .overflow_hidden()
-                                            .child(display_dir),
-                                    )
-                                    // Close button - compact and subtle
-                                    .child(
-                                        div()
-                                            // Use NamedInteger for ~10x faster ElementId creation
-                                            .id(ElementId::NamedInteger("close-tab".into(), tab_id as u64))
-                                            .flex()
-                                            .items_center()
-                                            .justify_center()
-                                            .w(px(18.0))
-                                            .h(px(18.0))
-                                            .ml(px(6.0))
-                                            .rounded(px(4.0))
-                                            .text_xs()
-                                            .text_color(text_muted)
-                                            .hover(|style| {
-                                                style.bg(button_hover_bg).text_color(text_color)
-                                            })
-                                            .active(|style| style.bg(button_active_bg))
-                                            .on_mouse_down(
-                                                MouseButton::Left,
-                                                |_: &MouseDownEvent,
-                                                 window: &mut Window,
-                                                 cx: &mut App| {
-                                                    window.prevent_default();
-                                                    cx.stop_propagation();
-                                                },
-                                            )
-                                            .on_click(cx.listener(
-                                                move |this, _: &ClickEvent, _window, cx| {
-                                                    cx.stop_propagation();
-                                                    this.on_close_tab(tab_id, cx);
-                                                },
-                                            ))
-                                            .child("×"),
-                                    )
+                        div()
+                            // Use NamedInteger for ~10x faster ElementId creation
+                            .id(ElementId::NamedInteger("tab".into(), tab_id as u64))
+                            .flex()
+                            .flex_row()
+                            .flex_shrink_0() // Prevent tabs from shrinking
+                            .items_center()
+                            .justify_between()
+                            .h(px(28.0))
+                            .min_w(TAB_MIN_WIDTH)
+                            .max_w(TAB_MAX_WIDTH)
+                            .px(px(10.0))
+                            .rounded_t_md()
+                            .bg(bg_color)
+                            // Active tab indicator - subtle bottom border
+                            .when(is_active, |el| {
+                                el.border_b_2().border_color(tab_active_indicator)
+                            })
+                            .when(!is_active, |el| el.border_b_1().border_color(border_color))
+                            .hover(|style| style.bg(hover_bg))
+                            .cursor_pointer()
+                            .block_mouse_except_scroll()
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
+                                    window.prevent_default();
+                                    cx.stop_propagation();
+                                },
+                            )
+                            .on_click(cx.listener(move |this, _: &ClickEvent, _window, cx| {
+                                this.on_select_tab(tab_index, cx);
                             }))
-                            // New tab button - minimal style, stays at end of tabs
+                            // Tab title - takes most space
                             .child(
                                 div()
-                                    .id("new-tab-button")
+                                    .flex_1()
+                                    .text_sm()
+                                    .text_color(tab_text_color)
+                                    .truncate()
+                                    .overflow_hidden()
+                                    .child(tab_title),
+                            )
+                            // Close button - compact and subtle
+                            .child(
+                                div()
+                                    // Use NamedInteger for ~10x faster ElementId creation
+                                    .id(ElementId::NamedInteger("close-tab".into(), tab_id as u64))
                                     .flex()
-                                    .flex_shrink_0() // Prevent button from shrinking
                                     .items_center()
                                     .justify_center()
-                                    .w(px(28.0))
-                                    .h(px(28.0))
-                                    .ml(px(4.0))
-                                    .rounded(px(6.0))
+                                    .w(px(18.0))
+                                    .h(px(18.0))
+                                    .ml(px(6.0))
+                                    .rounded(px(4.0))
+                                    .text_xs()
                                     .text_color(text_muted)
                                     .hover(|style| style.bg(button_hover_bg).text_color(text_color))
                                     .active(|style| style.bg(button_active_bg))
-                                    .cursor_pointer()
-                                    .block_mouse_except_scroll()
                                     .on_mouse_down(
                                         MouseButton::Left,
                                         |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
@@ -393,11 +295,44 @@ impl Render for TitleBar {
                                             cx.stop_propagation();
                                         },
                                     )
-                                    .on_click(cx.listener(|this, _: &ClickEvent, _window, cx| {
-                                        this.on_new_tab(cx);
-                                    }))
-                                    .child("+"),
-                            ),
+                                    .on_click(cx.listener(
+                                        move |this, _: &ClickEvent, _window, cx| {
+                                            cx.stop_propagation();
+                                            this.on_close_tab(tab_index, cx);
+                                        },
+                                    ))
+                                    .child("×"),
+                            )
+                    }))
+                    // New tab button - minimal style, stays at end of tabs
+                    .child(
+                        div()
+                            .id("new-tab-button")
+                            .flex()
+                            .flex_shrink_0() // Prevent button from shrinking
+                            .items_center()
+                            .justify_center()
+                            .w(px(28.0))
+                            .h(px(28.0))
+                            .ml(px(4.0))
+                            .rounded(px(6.0))
+                            .text_color(text_muted)
+                            .hover(|style| style.bg(button_hover_bg).text_color(text_color))
+                            .active(|style| style.bg(button_active_bg))
+                            .cursor_pointer()
+                            .block_mouse_except_scroll()
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                |_: &MouseDownEvent, window: &mut Window, cx: &mut App| {
+                                    window.prevent_default();
+                                    cx.stop_propagation();
+                                },
+                            )
+                            .on_click(cx.listener(|this, _: &ClickEvent, _window, cx| {
+                                this.on_new_tab(cx);
+                            }))
+                            .child("+"),
+                    ),
             )
             // Window controls (right side) - protected from shrinking
             .when(
@@ -640,7 +575,10 @@ impl RenderOnce for LinuxCaptionButton {
             }
             _ => {
                 // 最小化/最大化按钮使用主题颜色
-                (colors.button_hover_background.to_rgb(), colors.icon.to_rgb())
+                (
+                    colors.button_hover_background.to_rgb(),
+                    colors.icon.to_rgb(),
+                )
             }
         };
 

@@ -2,9 +2,7 @@
 resolver = "3"
 members = [
     "crates/z_term",
-    "crates/zterm_terminal",
     "crates/zterm_ui",
-    "crates/zterm_input",
     "crates/zterm_common",
     "crates/axon_ui",
 ]
@@ -21,9 +19,7 @@ description = "A modern cross-platform terminal emulator built with Rust and GPU
 [workspace.dependencies]
 # Internal crates
 zterm_common = { path = "crates/zterm_common" }
-zterm_terminal = { path = "crates/zterm_terminal" }
 zterm_ui = { path = "crates/zterm_ui" }
-zterm_input = { path = "crates/zterm_input" }
 axon_ui = { path = "crates/axon_ui" }
 
 # GPUI - 跟随 gpui-component 的 gpui 版本
@@ -60,7 +56,6 @@ dirs = "5.0"
 shellexpand = "3.1"
 notify = { version = "8", default-features = false, features = ["macos_kqueue"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
-unicode-width = "0.2"
 regex = "1.10"
 
 # 平台特定 - Windows

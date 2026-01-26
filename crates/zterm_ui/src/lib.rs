@@ -7,18 +7,9 @@
 
 pub mod components;
 pub mod elements;
-pub mod shell_integration;
-pub mod theme;
 
 pub use components::title_bar::{
-    LinuxWindowControls, NewTab, PlatformStyle, TitleBarEvent, WindowsWindowControls,
-    TITLE_BAR_HEIGHT,
+    LinuxWindowControls, NewTab, PlatformStyle, TITLE_BAR_HEIGHT, TitleBarEvent,
+    WindowsWindowControls,
 };
-pub use components::{
-    ContextMenuItem, ContextMenuState, Copy, GridPosition, ImeState, Paste, ScrollDown,
-    ScrollPageDown, ScrollPageUp, ScrollToBottom, ScrollToTop, ScrollUp, Search, SharedBounds,
-    TabInfo, TerminalTabBar, TerminalView, TitleBar,
-};
-pub use elements::{ScrollbarElement, ScrollbarState, ThumbState};
-pub use shell_integration::ContextMenuAction;
-pub use theme::TerminalTheme;
+pub use components::{TabInfo, TerminalTabBar, TitleBar};

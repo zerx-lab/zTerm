@@ -1,14 +1,13 @@
 //! Main application window
 
 use crate::app::{
-    CloseActiveTab, CommandPalette, FocusTerminal, GotoTab1, GotoTab2, GotoTab3, GotoTab4,
-    GotoTab5, GotoTab6, GotoTab7, GotoTab8, GotoTab9, NewTab, NextTab, PrevTab, Quit, ResetZoom,
-    SplitHorizontal, SplitVertical, ToggleFullscreen, ZoomIn, ZoomOut,
+    CloseActiveTab, CommandPalette, GotoTab1, GotoTab2, GotoTab3, GotoTab4, GotoTab5, GotoTab6,
+    GotoTab7, GotoTab8, GotoTab9, NewTab, NextTab, PrevTab, Quit, ToggleFullscreen,
 };
 use crate::workspace::Workspace;
-use zterm_ui::{TabInfo, TitleBar, TitleBarEvent};
 use axon_ui::ThemeContext;
 use gpui::*;
+use zterm_ui::{TitleBar, TitleBarEvent};
 
 /// The main application window
 pub struct MainWindow {
@@ -51,8 +50,6 @@ impl MainWindow {
                 self.title_bar.update(cx, |title_bar, _| {
                     title_bar.scroll_to_tab(active_index);
                 });
-                // Focus the new terminal
-                self.focus_active_terminal_deferred(cx);
             }
             TitleBarEvent::SelectTab(tab_index) => {
                 let tab_index = *tab_index;
@@ -63,8 +60,6 @@ impl MainWindow {
                 self.title_bar.update(cx, |title_bar, _| {
                     title_bar.scroll_to_tab(tab_index);
                 });
-                // Focus the selected terminal
-                self.focus_active_terminal_deferred(cx);
             }
             TitleBarEvent::CloseTab(tab_index) => {
                 let tab_index = *tab_index;
@@ -77,45 +72,12 @@ impl MainWindow {
                     cx.defer(|cx| {
                         cx.dispatch_action(&Quit);
                     });
-                } else {
-                    // Focus the new active terminal
-                    self.focus_active_terminal_deferred(cx);
                 }
             }
         }
     }
 
-    /// Focus the active terminal view (deferred version for use without Window)
-    fn focus_active_terminal_deferred(&self, cx: &mut Context<Self>) {
-        // Dispatch FocusTerminal action to focus the terminal
-        // This allows us to get the Window parameter in the action handler
-        cx.defer(|cx| {
-            cx.dispatch_action(&FocusTerminal);
-        });
-    }
-
-    fn handle_focus_terminal(
-        &mut self,
-        _: &FocusTerminal,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.focus_active_terminal(window, cx);
-    }
-
-    /// Focus the active terminal view
-    fn focus_active_terminal(&self, window: &mut Window, cx: &mut Context<Self>) {
-        // Clone the terminal view entity to avoid borrow issues
-        let terminal_view = self.workspace.read(cx).active_terminal_view().cloned();
-
-        if let Some(terminal_view) = terminal_view {
-            terminal_view.update(cx, |view, cx| {
-                window.focus(view.focus_handle_ref(), cx);
-            });
-        }
-    }
-
-    fn handle_new_tab(&mut self, _: &NewTab, window: &mut Window, cx: &mut Context<Self>) {
+    fn handle_new_tab(&mut self, _: &NewTab, _window: &mut Window, cx: &mut Context<Self>) {
         self.workspace.update(cx, |ws, cx| {
             ws.new_tab(cx);
         });
@@ -124,8 +86,6 @@ impl MainWindow {
         self.title_bar.update(cx, |title_bar, _| {
             title_bar.scroll_to_tab(active_index);
         });
-        // Focus the new terminal
-        self.focus_active_terminal(window, cx);
     }
 
     fn handle_close_active_tab(
@@ -138,13 +98,10 @@ impl MainWindow {
 
         if should_close_window {
             window.remove_window();
-        } else {
-            // Refocus the new active terminal view
-            self.focus_active_terminal(window, cx);
         }
     }
 
-    fn handle_next_tab(&mut self, _: &NextTab, window: &mut Window, cx: &mut Context<Self>) {
+    fn handle_next_tab(&mut self, _: &NextTab, _window: &mut Window, cx: &mut Context<Self>) {
         self.workspace.update(cx, |ws, cx| {
             ws.next_tab(cx);
         });
@@ -153,11 +110,9 @@ impl MainWindow {
         self.title_bar.update(cx, |title_bar, _| {
             title_bar.scroll_to_tab(active_index);
         });
-        // Focus the new active terminal
-        self.focus_active_terminal(window, cx);
     }
 
-    fn handle_prev_tab(&mut self, _: &PrevTab, window: &mut Window, cx: &mut Context<Self>) {
+    fn handle_prev_tab(&mut self, _: &PrevTab, _window: &mut Window, cx: &mut Context<Self>) {
         self.workspace.update(cx, |ws, cx| {
             ws.prev_tab(cx);
         });
@@ -166,8 +121,6 @@ impl MainWindow {
         self.title_bar.update(cx, |title_bar, _| {
             title_bar.scroll_to_tab(active_index);
         });
-        // Focus the new active terminal
-        self.focus_active_terminal(window, cx);
     }
 
     fn handle_toggle_fullscreen(
@@ -177,41 +130,6 @@ impl MainWindow {
         _cx: &mut Context<Self>,
     ) {
         window.toggle_fullscreen();
-    }
-
-    fn handle_split_horizontal(
-        &mut self,
-        _: &SplitHorizontal,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) {
-        // TODO: Implement horizontal split when pane system is ready
-        tracing::info!("Split horizontal not yet implemented");
-    }
-
-    fn handle_split_vertical(
-        &mut self,
-        _: &SplitVertical,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) {
-        // TODO: Implement vertical split when pane system is ready
-        tracing::info!("Split vertical not yet implemented");
-    }
-
-    fn handle_zoom_in(&mut self, _: &ZoomIn, _window: &mut Window, _cx: &mut Context<Self>) {
-        // TODO: Implement zoom in
-        tracing::info!("Zoom in not yet implemented");
-    }
-
-    fn handle_zoom_out(&mut self, _: &ZoomOut, _window: &mut Window, _cx: &mut Context<Self>) {
-        // TODO: Implement zoom out
-        tracing::info!("Zoom out not yet implemented");
-    }
-
-    fn handle_reset_zoom(&mut self, _: &ResetZoom, _window: &mut Window, _cx: &mut Context<Self>) {
-        // TODO: Implement reset zoom
-        tracing::info!("Reset zoom not yet implemented");
     }
 
     fn handle_command_palette(
@@ -225,8 +143,8 @@ impl MainWindow {
     }
 
     /// Go to a specific tab by index (0-based)
-    fn goto_tab(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
-        let tab_count = self.workspace.read(cx).tabs().len();
+    fn goto_tab(&mut self, index: usize, _window: &mut Window, cx: &mut Context<Self>) {
+        let tab_count = self.workspace.read(cx).get_tab_infos().len();
         if index < tab_count {
             self.workspace.update(cx, |ws, cx| {
                 ws.set_active_tab(index, cx);
@@ -234,7 +152,6 @@ impl MainWindow {
             self.title_bar.update(cx, |title_bar, _| {
                 title_bar.scroll_to_tab(index);
             });
-            self.focus_active_terminal(window, cx);
         }
     }
 
@@ -272,7 +189,12 @@ impl MainWindow {
 
     fn handle_goto_tab_9(&mut self, _: &GotoTab9, window: &mut Window, cx: &mut Context<Self>) {
         // Ctrl+9 goes to the last tab (like browsers)
-        let last_index = self.workspace.read(cx).tabs().len().saturating_sub(1);
+        let last_index = self
+            .workspace
+            .read(cx)
+            .get_tab_infos()
+            .len()
+            .saturating_sub(1);
         self.goto_tab(last_index, window, cx);
     }
 }
@@ -287,40 +209,24 @@ impl Render for MainWindow {
         let text_muted = colors.text_muted.to_rgb();
 
         // Get tab information from workspace
-        let (tabs, active_tab_index, tab_count, working_dir) = {
+        let (tabs, active_tab_index, tab_count, active_content) = {
             let workspace = self.workspace.read(cx);
-            let tabs: Vec<TabInfo> = workspace
-                .tabs()
-                .iter()
-                .enumerate()
-                .map(|(i, tab)| {
-                    let terminal = tab.terminal.read(cx);
-                    let shell_name = terminal.shell_name();
-                    let working_directory =
-                        terminal.working_directory().to_string_lossy().to_string();
-                    // Use TabInfo::new for pre-computed display_directory (better perf)
-                    TabInfo::new(
-                        i,
-                        tab.title.clone(),
-                        i == workspace.active_tab_index(),
-                        shell_name,
-                        working_directory,
-                    )
-                })
-                .collect();
+            let tabs = workspace.get_tab_infos();
             let active_tab_index = workspace.active_tab_index();
-            let tab_count = workspace.tabs().len();
-            let working_dir = workspace.active_working_directory().unwrap_or_default();
-            (tabs, active_tab_index, tab_count, working_dir)
+            let tab_count = tabs.len();
+            let active_content = workspace.active_tab_content().unwrap_or("No content");
+            (
+                tabs,
+                active_tab_index,
+                tab_count,
+                active_content.to_string(),
+            )
         };
 
         // Update title bar tabs
         self.title_bar.update(cx, |title_bar, _| {
             title_bar.tabs = tabs;
         });
-
-        // Get active terminal view separately after the mutable borrow is done
-        let active_terminal_view = self.workspace.read(cx).active_terminal_view();
 
         div()
             .id("main-window")
@@ -338,13 +244,7 @@ impl Render for MainWindow {
             .on_action(cx.listener(Self::handle_close_active_tab))
             .on_action(cx.listener(Self::handle_next_tab))
             .on_action(cx.listener(Self::handle_prev_tab))
-            .on_action(cx.listener(Self::handle_focus_terminal))
             .on_action(cx.listener(Self::handle_toggle_fullscreen))
-            .on_action(cx.listener(Self::handle_split_horizontal))
-            .on_action(cx.listener(Self::handle_split_vertical))
-            .on_action(cx.listener(Self::handle_zoom_in))
-            .on_action(cx.listener(Self::handle_zoom_out))
-            .on_action(cx.listener(Self::handle_reset_zoom))
             .on_action(cx.listener(Self::handle_command_palette))
             // Tab switching (Ctrl+1-9)
             .on_action(cx.listener(Self::handle_goto_tab_1))
@@ -356,22 +256,18 @@ impl Render for MainWindow {
             .on_action(cx.listener(Self::handle_goto_tab_7))
             .on_action(cx.listener(Self::handle_goto_tab_8))
             .on_action(cx.listener(Self::handle_goto_tab_9))
-            // Title bar with integrated tabs (like Warp Terminal)
+            // Title bar with integrated tabs
             .child(self.title_bar.clone())
-            // Terminal content
-            .child(div().flex_1().overflow_hidden().child(
-                if let Some(view) = active_terminal_view {
-                    view.clone().into_any_element()
-                } else {
-                    div()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .size_full()
-                        .child("No terminal open")
-                        .into_any_element()
-                },
-            ))
+            // Content area
+            .child(
+                div()
+                    .flex_1()
+                    .overflow_hidden()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(active_content),
+            )
             // Status bar
             .child(
                 div()
@@ -385,7 +281,7 @@ impl Render for MainWindow {
                     .border_color(border_color)
                     .text_xs()
                     .text_color(text_muted)
-                    .child(div().flex_1().child(working_dir))
+                    .child(div().flex_1().child("zTerm"))
                     .child(div().child(format!("Tab {}/{}", active_tab_index + 1, tab_count))),
             )
     }

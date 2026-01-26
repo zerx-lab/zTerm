@@ -3,15 +3,6 @@
 pub mod theme;
 
 pub use theme::{
-    builtin,
-    context::ThemeContext,
-    loader::ThemeLoader,
-    manager::ThemeManager,
-    Appearance,
-    Theme,
-    ThemeColors,
-    ThemeRegistry,
-    TerminalAnsiColors,
-    TerminalColors,
+    Appearance, Theme, ThemeColors, ThemeRegistry, builtin, context::ThemeContext,
+    loader::ThemeLoader, manager::ThemeManager,
 };
-
