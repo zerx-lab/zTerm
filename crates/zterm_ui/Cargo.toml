@@ -7,13 +7,23 @@ license.workspace = true
 rust-version.workspace = true
 description = "UI components for zTerm"
 
+[features]
+default = ["shell-integration"]
+shell-integration = ["zterm_terminal/shell-integration"]
+
 [dependencies]
 zterm_common.workspace = true
+zterm_terminal.workspace = true
 axon_ui.workspace = true
 
 # GPUI
 gpui.workspace = true
 gpui-component.workspace = true
+
+# WezTerm crates for rendering
+wezterm-cell.workspace = true
+wezterm-surface.workspace = true
+wezterm-color-types.workspace = true
 
 # Async
 smol.workspace = true

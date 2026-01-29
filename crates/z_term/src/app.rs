@@ -3,7 +3,7 @@
 use crate::window::MainWindow;
 use crate::workspace::Workspace;
 use gpui::*;
-use gpui_component::theme::Theme;
+use gpui_component::theme::{Theme, ThemeMode};
 use zterm_common::AppSettings;
 
 actions!(
@@ -46,8 +46,9 @@ impl ZTermApp {
         // Initialize our theme system
         axon_ui::ThemeManager::init(cx);
 
-        // Load theme from config
+        // Load theme from config and sync gpui-component theme
         Self::load_theme_from_config(cx);
+        Self::sync_gpui_component_theme(cx);
 
         // Register actions
         Self::register_actions(cx);
@@ -76,6 +77,20 @@ impl ZTermApp {
         if !axon_ui::ThemeManager::set_theme_by_name(theme_name, cx) {
             tracing::warn!("Failed to load theme '{}', using default", theme_name);
         }
+    }
+
+    /// Sync gpui-component theme mode with axon_ui theme
+    fn sync_gpui_component_theme(cx: &mut App) {
+        use axon_ui::ThemeContext;
+
+        let appearance = cx.current_theme().appearance;
+        let mode = if appearance.is_dark() {
+            ThemeMode::Dark
+        } else {
+            ThemeMode::Light
+        };
+        Theme::change(mode, None, cx);
+        tracing::debug!("Synced gpui-component theme to {:?}", mode);
     }
 
     /// Watch for configuration changes and rebind keybindings when needed
@@ -113,6 +128,7 @@ impl ZTermApp {
                         tracing::info!("Theme changed to: {}", current_theme);
                         cx.update(|cx| {
                             Self::load_theme_from_config(cx);
+                            Self::sync_gpui_component_theme(cx);
                         });
                     }
 

@@ -68,6 +68,28 @@ impl Screen {
         self.lines.len().saturating_sub(self.rows)
     }
 
+    /// 获取有效的 scrollback 行数（排除顶部空行）
+    ///
+    /// 这用于限制滚动范围，避免滚动到全是空白的区域
+    pub fn effective_scrollback_lines(&self) -> usize {
+        // 找到第一个非空行的索引
+        let first_non_empty = self
+            .lines
+            .iter()
+            .position(|line| !line.is_empty())
+            .unwrap_or(self.lines.len());
+
+        // 有效的滚动范围是从第一个非空行到 viewport 开始的位置
+        let scrollback_start = self.scrollback_lines();
+        if first_non_empty >= scrollback_start {
+            // 第一个非空行在 viewport 中，没有有效的 scrollback
+            0
+        } else {
+            // 有效的 scrollback = scrollback 中非空行的数量
+            scrollback_start.saturating_sub(first_non_empty)
+        }
+    }
+
     /// 获取最大 scrollback 行数
     #[inline]
     pub fn max_scrollback(&self) -> usize {
@@ -193,7 +215,21 @@ impl Screen {
         }
 
         // 在底部添加新空行
-        self.lines.push_back(Line::with_capacity(self.cols));
+        let new_line = Line::with_capacity(self.cols);
+        tracing::debug!(
+            "Screen::scroll_up: adding new line (len={}), total {} -> {}",
+            new_line.len(),
+            self.lines.len(),
+            self.lines.len() + 1
+        );
+        self.lines.push_back(new_line);
+
+        tracing::debug!(
+            "Screen::scroll_up: total_lines={}, scrollback={}, rows={}",
+            self.lines.len(),
+            self.scrollback_lines(),
+            self.rows
+        );
     }
 
     /// 向下滚动一行（仅在 scrollback 模式下）
@@ -203,6 +239,85 @@ impl Screen {
             self.lines.push_front(Line::with_capacity(self.cols));
             if self.scrollback_offset > 0 {
                 self.scrollback_offset -= 1;
+            }
+        }
+    }
+
+    /// 在指定的上下边界内向上滚动（参考 WezTerm）
+    ///
+    /// - top: 滚动区域顶部（包含，0-based）
+    /// - bottom: 滚动区域底部（不包含，0-based）
+    /// - num_rows: 滚动行数
+    pub fn scroll_up_within_margins(&mut self, top: usize, bottom: usize, num_rows: usize) {
+        if top >= bottom || num_rows == 0 {
+            return;
+        }
+
+        let scrollback_start = self.scrollback_lines();
+        let region_height = bottom.saturating_sub(top);
+        let actual_scroll = num_rows.min(region_height);
+
+        // 如果是全屏滚动（top == 0 && bottom == rows）
+        if top == 0 && bottom == self.rows {
+            // 使用原有的 scroll_up 逻辑
+            for _ in 0..actual_scroll {
+                self.scroll_up();
+            }
+            return;
+        }
+
+        // 滚动区域内的滚动（不进入 scrollback）
+        // 移动内容：从 top+actual_scroll 开始的行移动到 top
+        for i in 0..actual_scroll {
+            let src_phys = scrollback_start + top + actual_scroll + i;
+            let dst_phys = scrollback_start + top + i;
+
+            if src_phys < scrollback_start + bottom && dst_phys < self.lines.len() {
+                // 复制源行内容到目标行
+                if src_phys < self.lines.len() {
+                    let src_line = self.lines[src_phys].clone();
+                    self.lines[dst_phys] = src_line;
+                }
+            }
+        }
+
+        // 在底部填充空白行
+        for i in 0..actual_scroll {
+            let phys = scrollback_start + bottom - actual_scroll + i;
+            if phys < self.lines.len() {
+                self.lines[phys] = Line::with_capacity(self.cols);
+            }
+        }
+    }
+
+    /// 在指定的上下边界内向下滚动
+    pub fn scroll_down_within_margins(&mut self, top: usize, bottom: usize, num_rows: usize) {
+        if top >= bottom || num_rows == 0 {
+            return;
+        }
+
+        let scrollback_start = self.scrollback_lines();
+        let region_height = bottom.saturating_sub(top);
+        let actual_scroll = num_rows.min(region_height);
+
+        // 从底部向顶部移动内容
+        for i in (0..region_height - actual_scroll).rev() {
+            let src_phys = scrollback_start + top + i;
+            let dst_phys = scrollback_start + top + i + actual_scroll;
+
+            if dst_phys < scrollback_start + bottom && src_phys < self.lines.len() {
+                if dst_phys < self.lines.len() {
+                    let src_line = self.lines[src_phys].clone();
+                    self.lines[dst_phys] = src_line;
+                }
+            }
+        }
+
+        // 在顶部填充空白行
+        for i in 0..actual_scroll {
+            let phys = scrollback_start + top + i;
+            if phys < self.lines.len() {
+                self.lines[phys] = Line::with_capacity(self.cols);
             }
         }
     }
@@ -274,6 +389,24 @@ impl Screen {
         let viewport_start = self.scrollback_lines();
         self.lines.drain(0..viewport_start);
         self.scrollback_offset += viewport_start;
+    }
+
+    // ========== 文本提取 ==========
+
+    /// 获取指定行的文本内容（基于可见行索引）
+    pub fn get_line_text(&self, visible_row: usize) -> Option<String> {
+        let scrollback_lines = self.scrollback_lines();
+        let phys_idx = scrollback_lines + visible_row;
+
+        self.lines.get(phys_idx).map(|line| {
+            let cells = line.to_vec();
+            let mut text = String::new();
+            for cell in cells {
+                text.push_str(cell.text());
+            }
+            // 去除尾部空格
+            text.trim_end().to_string()
+        })
     }
 
     // ========== 迭代器 ==========
@@ -493,5 +626,60 @@ mod tests {
         }
 
         assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn test_effective_scrollback_lines_all_empty() {
+        // 所有行都是空的，有效 scrollback 应该是 0
+        let mut screen = Screen::new(3, 10, 10);
+        screen.scroll_up();
+        screen.scroll_up();
+
+        assert_eq!(screen.scrollback_lines(), 2);
+        assert_eq!(screen.effective_scrollback_lines(), 0);
+    }
+
+    #[test]
+    fn test_effective_scrollback_lines_with_content() {
+        use crate::grid::Cell;
+
+        let mut screen = Screen::new(3, 10, 10);
+
+        // 在第一行写入内容（使用 push 因为 set_cell 需要先 resize）
+        if let Some(line) = screen.get_line_mut(PhysRowIndex::new(0)) {
+            line.push(Cell::new("H"));
+        }
+
+        // 验证第一行不为空
+        assert!(!screen.get_line(PhysRowIndex::new(0)).unwrap().is_empty());
+
+        // 滚动，使第一行进入 scrollback
+        screen.scroll_up();
+        screen.scroll_up();
+
+        assert_eq!(screen.scrollback_lines(), 2);
+        // 第一行有内容，所以有效 scrollback 是 2
+        assert_eq!(screen.effective_scrollback_lines(), 2);
+    }
+
+    #[test]
+    fn test_effective_scrollback_lines_partial_content() {
+        use crate::grid::Cell;
+
+        let mut screen = Screen::new(3, 10, 10);
+
+        // 滚动两次，创建 2 行空的 scrollback（原来的第 0、1 行变成 scrollback）
+        screen.scroll_up();
+        screen.scroll_up();
+
+        // 在物理索引 1 写入内容（这是原来的第 1 行，现在在 scrollback 中）
+        if let Some(line) = screen.get_line_mut(PhysRowIndex::new(1)) {
+            line.push(Cell::new("X"));
+        }
+
+        assert_eq!(screen.scrollback_lines(), 2);
+        // 第 0 行是空的，第 1 行有内容
+        // 有效 scrollback = scrollback_lines - first_non_empty = 2 - 1 = 1
+        assert_eq!(screen.effective_scrollback_lines(), 1);
     }
 }

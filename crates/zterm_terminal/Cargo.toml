@@ -38,6 +38,7 @@ unicode-width = "0.2"
 
 # Serialization
 serde.workspace = true
+serde_json.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows.workspace = true
@@ -48,3 +49,4 @@ nix.workspace = true
 
 [dev-dependencies]
 tracing-subscriber.workspace = true
+anyhow.workspace = true

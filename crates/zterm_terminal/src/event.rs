@@ -11,6 +11,9 @@ pub enum TerminalEvent {
     /// PTY 输出数据（需要通过 VTE parser 解析）
     PtyOutput(Vec<u8>),
 
+    /// 向 PTY 写入数据（用于终端响应,如 DSR）
+    PtyWrite(Vec<u8>),
+
     /// 窗口标题改变
     TitleChanged(String),
 
@@ -61,6 +64,9 @@ pub enum ShellIntegrationEvent {
 
     /// 工作目录改变
     WorkingDirectoryChanged(String),
+
+    /// 原始 OSC 序列 (用于测试和调试)
+    RawOscSequence(crate::shell_integration::OscSequence),
 }
 
 /// 终端事件监听器 trait

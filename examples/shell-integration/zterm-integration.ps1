@@ -322,5 +322,7 @@ function Global:Send-ZTermCustomData {
     [Console]::Write((Send-ZTermMetadata -Data $Data))
 }
 
-# 导出函数供用户使用
-Export-ModuleMember -Function Send-ZTermCustomData -ErrorAction SilentlyContinue
+# 导出函数供用户使用 (仅在模块上下文中执行)
+if ($MyInvocation.MyCommand.ScriptBlock.Module) {
+    Export-ModuleMember -Function Send-ZTermCustomData
+}

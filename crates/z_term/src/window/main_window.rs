@@ -7,7 +7,7 @@ use crate::app::{
 use crate::workspace::Workspace;
 use axon_ui::ThemeContext;
 use gpui::*;
-use zterm_ui::{TitleBar, TitleBarEvent};
+use zterm_ui::{TerminalElement, TerminalView, TitleBar, TitleBarEvent};
 
 /// The main application window
 pub struct MainWindow {
@@ -16,6 +16,9 @@ pub struct MainWindow {
 
     /// Title bar entity
     title_bar: Entity<TitleBar>,
+
+    /// Focus handle for terminal input
+    focus_handle: FocusHandle,
 }
 
 impl MainWindow {
@@ -27,9 +30,12 @@ impl MainWindow {
         cx.subscribe(&title_bar, Self::handle_title_bar_event)
             .detach();
 
+        let focus_handle = cx.focus_handle();
+
         Self {
             workspace,
             title_bar,
+            focus_handle,
         }
     }
 
@@ -197,6 +203,185 @@ impl MainWindow {
             .saturating_sub(1);
         self.goto_tab(last_index, window, cx);
     }
+
+    /// Handle keyboard input for terminal
+    fn handle_key_down(
+        &mut self,
+        event: &KeyDownEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        // 获取当前活动终端
+        let terminal = match self.workspace.read(cx).active_terminal() {
+            Some(term) => term,
+            None => {
+                tracing::warn!("No active terminal for key input");
+                return;
+            }
+        };
+
+        // 将按键转换为字节流
+        let bytes = self.key_event_to_bytes(event);
+
+        if !bytes.is_empty() {
+            tracing::debug!(
+                "Writing {} bytes to terminal: {:?}",
+                bytes.len(),
+                String::from_utf8_lossy(&bytes)
+            );
+            // 写入到 PTY
+            if let Err(e) = terminal.write(&bytes) {
+                tracing::error!("Failed to write to terminal: {} (bytes: {:?})", e, bytes);
+            } else {
+                tracing::debug!("Successfully wrote to terminal");
+                // 用户输入时自动滚动到底部
+                terminal.scroll_to_bottom();
+                // 触发重绘
+                cx.notify();
+            }
+        } else {
+            tracing::trace!("Key event produced no bytes: {:?}", event.keystroke.key);
+        }
+    }
+
+    /// Convert key event to bytes for PTY
+    fn key_event_to_bytes(&self, event: &KeyDownEvent) -> Vec<u8> {
+        let keystroke = &event.keystroke;
+
+        // 处理特殊键 (GPUI 使用字符串名称而不是字符)
+        match keystroke.key.as_str() {
+            "space" => return vec![b' '],
+            "enter" => return vec![b'\r'],
+            "backspace" => return vec![0x7f], // DEL
+            "tab" => return vec![b'\t'],
+            "escape" => return vec![0x1b],
+            "up" => return b"\x1b[A".to_vec(),
+            "down" => return b"\x1b[B".to_vec(),
+            "right" => return b"\x1b[C".to_vec(),
+            "left" => return b"\x1b[D".to_vec(),
+            "home" => return b"\x1b[H".to_vec(),
+            "end" => return b"\x1b[F".to_vec(),
+            "pageup" => return b"\x1b[5~".to_vec(),
+            "pagedown" => return b"\x1b[6~".to_vec(),
+            "delete" => return b"\x1b[3~".to_vec(),
+            "insert" => return b"\x1b[2~".to_vec(),
+            _ => {}
+        }
+
+        // 处理 Ctrl 组合键
+        if keystroke.modifiers.control {
+            if let Some(ch) = keystroke.key.chars().next() {
+                if ch >= 'a' && ch <= 'z' {
+                    // Ctrl+A = 0x01, Ctrl+B = 0x02, etc.
+                    let ctrl_code = (ch as u8) - b'a' + 1;
+                    return vec![ctrl_code];
+                } else if ch >= 'A' && ch <= 'Z' {
+                    let ctrl_code = (ch as u8) - b'A' + 1;
+                    return vec![ctrl_code];
+                }
+            }
+        }
+
+        // 普通字符输入 (没有修饰键，或只有 Shift)
+        if !keystroke.modifiers.control && !keystroke.modifiers.alt && !keystroke.modifiers.platform
+        {
+            keystroke.key.as_bytes().to_vec()
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// 渲染终端内容 - 使用 TerminalElement（高性能 Element trait）
+    fn render_terminal_content(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let workspace = self.workspace.read(cx);
+        let terminal = workspace.active_terminal();
+        let theme = cx.current_theme();
+        let colors = &theme.colors;
+
+        // 使用新的高性能 TerminalElement（基于 Element trait）
+        // 相比 TerminalView (RenderOnce)，TerminalElement 具有：
+        // - 批量文本渲染 (BatchedTextRun)
+        // - 视口裁剪 (viewport culling)
+        // - 直接绘制 (paint_quad, shape_line)
+        let use_terminal_element = true;
+
+        // 获取命令块（如果启用了 shell-integration）
+        #[cfg(feature = "shell-integration")]
+        let blocks = workspace.active_tab_blocks();
+
+        // 调试：输出块数量信息
+        #[cfg(feature = "shell-integration")]
+        {
+            use zterm_terminal::shell_integration::BlockState;
+            let finished_count = blocks
+                .iter()
+                .filter(|b| b.state == BlockState::Finished)
+                .count();
+            let executing_count = blocks
+                .iter()
+                .filter(|b| b.state == BlockState::Executing)
+                .count();
+            if !blocks.is_empty() {
+                tracing::debug!(
+                    "[BlockRender] Blocks: total={}, finished={}, executing={}",
+                    blocks.len(),
+                    finished_count,
+                    executing_count
+                );
+            }
+        }
+
+        // 外层容器：处理焦点和键盘输入
+        // 使用 overflow_hidden 让终端填满空间，滚动由终端内部 scrollback 处理
+        let container = div()
+            .id("terminal-container")
+            .flex_1()
+            .overflow_hidden()
+            .track_focus(&self.focus_handle)
+            .on_key_down(cx.listener(Self::handle_key_down));
+
+        if let Some(term) = terminal {
+            if use_terminal_element {
+                // 使用新的 TerminalElement（高性能）
+                let terminal_element =
+                    TerminalElement::new(term.clone(), self.focus_handle.clone(), colors.clone());
+                container.child(terminal_element)
+            } else {
+                // 使用旧的 TerminalView（RenderOnce）作为备选
+                #[cfg(feature = "shell-integration")]
+                {
+                    use zterm_terminal::shell_integration::BlockState;
+                    let has_finished_blocks =
+                        blocks.iter().any(|b| b.state == BlockState::Finished);
+                    let use_block_mode = false; // 禁用块渲染
+
+                    if use_block_mode {
+                        tracing::debug!("[BlockRender] Using BLOCK mode");
+                    }
+
+                    let view = TerminalView::new()
+                        .terminal(term)
+                        .blocks(blocks)
+                        .block_mode(use_block_mode);
+                    container.child(view)
+                }
+
+                #[cfg(not(feature = "shell-integration"))]
+                {
+                    container.child(TerminalView::new().terminal(term))
+                }
+            }
+        } else {
+            tracing::warn!("No active terminal in workspace!");
+            container
+                .flex()
+                .items_center()
+                .justify_center()
+                .bg(colors.background.to_rgb())
+                .child("No active terminal")
+                .text_color(colors.text_muted.to_rgb())
+        }
+    }
 }
 
 impl Render for MainWindow {
@@ -209,18 +394,12 @@ impl Render for MainWindow {
         let text_muted = colors.text_muted.to_rgb();
 
         // Get tab information from workspace
-        let (tabs, active_tab_index, tab_count, active_content) = {
+        let (tabs, active_tab_index, tab_count) = {
             let workspace = self.workspace.read(cx);
             let tabs = workspace.get_tab_infos();
             let active_tab_index = workspace.active_tab_index();
             let tab_count = tabs.len();
-            let active_content = workspace.active_tab_content().unwrap_or("No content");
-            (
-                tabs,
-                active_tab_index,
-                tab_count,
-                active_content.to_string(),
-            )
+            (tabs, active_tab_index, tab_count)
         };
 
         // Update title bar tabs
@@ -258,16 +437,8 @@ impl Render for MainWindow {
             .on_action(cx.listener(Self::handle_goto_tab_9))
             // Title bar with integrated tabs
             .child(self.title_bar.clone())
-            // Content area
-            .child(
-                div()
-                    .flex_1()
-                    .overflow_hidden()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(active_content),
-            )
+            // Content area - Terminal View
+            .child(self.render_terminal_content(cx))
             // Status bar
             .child(
                 div()

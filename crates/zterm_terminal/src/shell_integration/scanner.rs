@@ -1,6 +1,8 @@
 //! OSC 序列扫描器
 //!
-//! 在 VTE 解析前拦截 OSC 133/633 序列，用于 shell integration
+//! 在 VTE 解析前拦截 OSC 133/633/531 序列，用于 shell integration
+
+use super::json_types::{BlockMetadata, CommandResult, JsonDataType};
 
 /// OSC 扫描器状态
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,20 +22,36 @@ enum State {
 /// OSC 序列
 #[derive(Debug, Clone)]
 pub enum OscSequence {
-    /// OSC 133;A - 提示符开始
-    PromptStart,
+    /// OSC 133;A - 提示符开始 (扩展: 支持 aid 和 JSON 元数据)
+    PromptStart {
+        aid: Option<String>,
+        json: Option<BlockMetadata>,
+    },
     /// OSC 133;B - 命令开始
-    CommandStart,
+    CommandStart {
+        aid: Option<String>,
+    },
     /// OSC 133;C - 命令执行中
-    CommandExecuting,
-    /// OSC 133;D - 命令结束
-    CommandFinished { exit_code: Option<i32> },
+    CommandExecuting {
+        aid: Option<String>,
+    },
+    /// OSC 133;D - 命令结束 (扩展: 支持 aid 和 JSON 元数据)
+    CommandFinished {
+        exit_code: Option<i32>,
+        aid: Option<String>,
+        json: Option<CommandResult>,
+    },
     /// OSC 633;E - 命令文本
     CommandText(String),
     /// OSC 633;P;Cwd= - 工作目录
     WorkingDirectory(String),
     /// OSC 7 - 工作目录（另一种格式）
     Osc7WorkingDirectory(String),
+    /// OSC 51 - JSON 数据通道
+    JsonData {
+        data_type: JsonDataType,
+        payload: serde_json::Value,
+    },
 }
 
 /// OSC 扫描器
@@ -187,6 +205,59 @@ impl OscScanner {
         sequences
     }
 
+    /// 反转义 OSC 值 (逆向 __ZTerm-Escape-Value)
+    /// 将 \xHH 格式转回原始字符
+    fn unescape_value(s: &str) -> String {
+        let mut result = String::with_capacity(s.len());
+        let mut chars = s.chars().peekable();
+
+        while let Some(ch) = chars.next() {
+            if ch == '\\' {
+                match chars.peek() {
+                    Some('x') => {
+                        chars.next(); // 消费 'x'
+                        // 读取两位十六进制数
+                        let hex: String = chars.by_ref().take(2).collect();
+                        if hex.len() == 2 {
+                            if let Ok(byte) = u8::from_str_radix(&hex, 16) {
+                                result.push(byte as char);
+                                continue;
+                            }
+                        }
+                        // 如果解析失败,恢复原始字符
+                        result.push('\\');
+                        result.push('x');
+                        result.push_str(&hex);
+                    }
+                    Some('n') => {
+                        chars.next();
+                        result.push('\n');
+                    }
+                    Some('\\') => {
+                        chars.next();
+                        result.push('\\');
+                    }
+                    _ => result.push(ch),
+                }
+            } else {
+                result.push(ch);
+            }
+        }
+
+        result
+    }
+
+    /// 解析 key=value 参数
+    fn parse_params(params: &str) -> std::collections::HashMap<String, String> {
+        let mut map = std::collections::HashMap::new();
+        for part in params.split(';') {
+            if let Some((key, value)) = part.split_once('=') {
+                map.insert(key.trim().to_string(), value.trim().to_string());
+            }
+        }
+        map
+    }
+
     /// 解析 OSC 缓冲区
     fn parse_osc(&self) -> Option<OscSequence> {
         if self.osc_buffer.is_empty() {
@@ -205,33 +276,79 @@ impl OscScanner {
         match cmd {
             "133" => {
                 // FinalTerm / VSCode shell integration
-                // 格式: OSC 133 ; <subcommand> [; <args>] BEL/ST
+                // 格式: OSC 133 ; <subcommand> [; <params>] BEL/ST
+                // 扩展: 支持 aid=<id> 和 json=<escaped_json> 参数
                 if parts.len() < 2 {
                     return None;
                 }
 
                 let subcommand = parts[1];
+                let cmd_char = subcommand.chars().next()?;
+
+                // 解析参数 (从 subcommand 的剩余部分)
+                let params_str = if subcommand.len() > 1 {
+                    &subcommand[1..]
+                } else {
+                    ""
+                };
+                let params = Self::parse_params(params_str);
+
+                // 提取 aid
+                let aid = params.get("aid").map(|s| s.to_string());
 
                 // 检查第一个字符确定子命令类型
-                match subcommand.chars().next()? {
-                    'A' => Some(OscSequence::PromptStart),
-                    'B' => Some(OscSequence::CommandStart),
-                    'C' => Some(OscSequence::CommandExecuting),
+                match cmd_char {
+                    'A' => {
+                        // 提示符开始,可能包含 JSON 元数据
+                        let json = params
+                            .get("json")
+                            .and_then(|s| {
+                                let unescaped = Self::unescape_value(s);
+                                serde_json::from_str::<BlockMetadata>(&unescaped)
+                                    .map_err(|e| {
+                                        tracing::debug!("Failed to parse BlockMetadata: {}", e);
+                                        e
+                                    })
+                                    .ok()
+                            });
+                        Some(OscSequence::PromptStart { aid, json })
+                    }
+                    'B' => Some(OscSequence::CommandStart { aid }),
+                    'C' => Some(OscSequence::CommandExecuting { aid }),
                     'D' => {
-                        // 命令结束,可能包含退出码
-                        // 格式: D 或 D;<exit_code>
-                        // 正确的解析方式: 分割分号
-                        let exit_code = if subcommand.len() > 1 {
-                            // 跳过 'D',查找分号
-                            subcommand[1..]
-                                .split_once(';')
-                                .and_then(|(_, code)| code.parse::<i32>().ok())
+                        // 命令结束,可能包含退出码和 JSON
+                        // 格式: D 或 D;0 或 D;0;aid=xxx 或 D;exit_code=0;aid=xxx
+                        let exit_code = if let Some(code_str) = params.get("exit_code") {
+                            // 新格式: exit_code=0
+                            code_str.parse::<i32>().ok()
+                        } else if !params_str.is_empty() && params_str.starts_with(';') {
+                            // 旧格式: ;0 或 ;0;aid=xxx
+                            let remaining = &params_str[1..]; // 跳过第一个分号
+                            if let Some((first, _rest)) = remaining.split_once(';') {
+                                // D;0;aid=xxx
+                                first.trim().parse::<i32>().ok()
+                            } else {
+                                // D;0
+                                remaining.trim().parse::<i32>().ok()
+                            }
                         } else {
                             None
                         };
 
-                        tracing::trace!("OSC 133;D parsed with exit_code: {:?}", exit_code);
-                        Some(OscSequence::CommandFinished { exit_code })
+                        let json = params
+                            .get("json")
+                            .and_then(|s| {
+                                let unescaped = Self::unescape_value(s);
+                                serde_json::from_str::<CommandResult>(&unescaped)
+                                    .map_err(|e| {
+                                        tracing::debug!("Failed to parse CommandResult: {}", e);
+                                        e
+                                    })
+                                    .ok()
+                            });
+
+                        tracing::trace!("OSC 133;D parsed with exit_code: {:?}, aid: {:?}", exit_code, aid);
+                        Some(OscSequence::CommandFinished { exit_code, aid, json })
                     }
                     _ => {
                         tracing::debug!("Unknown OSC 133 subcommand: {}", subcommand);
@@ -263,6 +380,42 @@ impl OscScanner {
                 }
                 Some(OscSequence::Osc7WorkingDirectory(parts[1].to_string()))
             }
+            "531" => {
+                // OSC 531 - zTerm 自定义 JSON 数据通道
+                // 格式: OSC 531 ; <escaped_json> BEL/ST
+                if parts.len() < 2 {
+                    return None;
+                }
+
+                let escaped_json = parts[1];
+                let unescaped = Self::unescape_value(escaped_json);
+
+                // 解析 JSON
+                match serde_json::from_str::<serde_json::Value>(&unescaped) {
+                    Ok(json) => {
+                        // 根据 type 字段确定数据类型
+                        let data_type = json
+                            .get("type")
+                            .and_then(|v| v.as_str())
+                            .and_then(|s| match s {
+                                "command_start" | "command_end" => Some(JsonDataType::CommandMeta),
+                                "prompt_start" => Some(JsonDataType::BlockMeta),
+                                "directory_changed" => Some(JsonDataType::OutputMeta),
+                                _ => Some(JsonDataType::Custom),
+                            })
+                            .unwrap_or(JsonDataType::Custom);
+
+                        Some(OscSequence::JsonData {
+                            data_type,
+                            payload: json,
+                        })
+                    }
+                    Err(e) => {
+                        tracing::debug!("Failed to parse OSC 531 JSON: {}", e);
+                        None
+                    }
+                }
+            }
             _ => None,
         }
     }
@@ -281,7 +434,10 @@ mod tests {
         let sequences = scanner.scan(data);
 
         assert_eq!(sequences.len(), 1);
-        assert!(matches!(sequences[0], OscSequence::PromptStart));
+        assert!(matches!(
+            sequences[0],
+            OscSequence::PromptStart { aid: None, json: None }
+        ));
     }
 
     #[test]
@@ -291,7 +447,7 @@ mod tests {
         let sequences = scanner.scan(data);
 
         assert_eq!(sequences.len(), 1);
-        assert!(matches!(sequences[0], OscSequence::CommandStart));
+        assert!(matches!(sequences[0], OscSequence::CommandStart { aid: None }));
     }
 
     #[test]
@@ -301,7 +457,7 @@ mod tests {
         let sequences = scanner.scan(data);
 
         assert_eq!(sequences.len(), 1);
-        assert!(matches!(sequences[0], OscSequence::CommandExecuting));
+        assert!(matches!(sequences[0], OscSequence::CommandExecuting { aid: None }));
     }
 
     #[test]
@@ -311,8 +467,10 @@ mod tests {
         let sequences = scanner.scan(data);
 
         assert_eq!(sequences.len(), 1);
-        if let OscSequence::CommandFinished { exit_code } = &sequences[0] {
+        if let OscSequence::CommandFinished { exit_code, aid, json } = &sequences[0] {
             assert_eq!(*exit_code, None);
+            assert_eq!(*aid, None);
+            assert!(json.is_none());
         } else {
             panic!("Expected CommandFinished, got {:?}", sequences[0]);
         }
@@ -325,8 +483,10 @@ mod tests {
         let sequences = scanner.scan(data);
 
         assert_eq!(sequences.len(), 1);
-        if let OscSequence::CommandFinished { exit_code } = &sequences[0] {
+        if let OscSequence::CommandFinished { exit_code, aid, json } = &sequences[0] {
             assert_eq!(*exit_code, Some(0));
+            assert_eq!(*aid, None);
+            assert!(json.is_none());
         } else {
             panic!("Expected CommandFinished, got {:?}", sequences[0]);
         }
@@ -339,8 +499,10 @@ mod tests {
         let sequences = scanner.scan(data);
 
         assert_eq!(sequences.len(), 1);
-        if let OscSequence::CommandFinished { exit_code } = &sequences[0] {
+        if let OscSequence::CommandFinished { exit_code, aid, json } = &sequences[0] {
             assert_eq!(*exit_code, Some(127));
+            assert_eq!(*aid, None);
+            assert!(json.is_none());
         } else {
             panic!("Expected CommandFinished, got {:?}", sequences[0]);
         }
@@ -353,8 +515,10 @@ mod tests {
         let sequences = scanner.scan(data);
 
         assert_eq!(sequences.len(), 1);
-        if let OscSequence::CommandFinished { exit_code } = &sequences[0] {
+        if let OscSequence::CommandFinished { exit_code, aid, json } = &sequences[0] {
             assert_eq!(*exit_code, Some(-1));
+            assert_eq!(*aid, None);
+            assert!(json.is_none());
         } else {
             panic!("Expected CommandFinished, got {:?}", sequences[0]);
         }
@@ -414,7 +578,10 @@ mod tests {
         let sequences = scanner.scan(data);
 
         assert_eq!(sequences.len(), 1);
-        assert!(matches!(sequences[0], OscSequence::PromptStart));
+        assert!(matches!(
+            sequences[0],
+            OscSequence::PromptStart { aid: None, json: None }
+        ));
     }
 
     #[test]
@@ -424,7 +591,7 @@ mod tests {
         let sequences = scanner.scan(data);
 
         assert_eq!(sequences.len(), 1);
-        assert!(matches!(sequences[0], OscSequence::CommandStart));
+        assert!(matches!(sequences[0], OscSequence::CommandStart { aid: None }));
     }
 
     // ========== 缓冲区限制测试 (参考 WezTerm) ==========
@@ -476,7 +643,7 @@ mod tests {
 
         assert_eq!(sequences.len(), 1);
         assert!(!scanner.buffer_full, "buffer_full should be reset for new sequence");
-        assert!(matches!(sequences[0], OscSequence::CommandStart));
+        assert!(matches!(sequences[0], OscSequence::CommandStart { aid: None }));
     }
 
     // ========== 多序列测试 ==========
@@ -488,9 +655,12 @@ mod tests {
         let sequences = scanner.scan(data);
 
         assert_eq!(sequences.len(), 3);
-        assert!(matches!(sequences[0], OscSequence::PromptStart));
-        assert!(matches!(sequences[1], OscSequence::CommandStart));
-        assert!(matches!(sequences[2], OscSequence::CommandExecuting));
+        assert!(matches!(
+            sequences[0],
+            OscSequence::PromptStart { aid: None, json: None }
+        ));
+        assert!(matches!(sequences[1], OscSequence::CommandStart { aid: None }));
+        assert!(matches!(sequences[2], OscSequence::CommandExecuting { aid: None }));
     }
 
     // ========== 不完整序列测试 ==========
@@ -525,8 +695,10 @@ mod tests {
         let sequences3 = scanner.scan(part3);
         assert_eq!(sequences3.len(), 1);
 
-        if let OscSequence::CommandFinished { exit_code } = &sequences3[0] {
+        if let OscSequence::CommandFinished { exit_code, aid, json } = &sequences3[0] {
             assert_eq!(*exit_code, Some(42));
+            assert_eq!(*aid, None);
+            assert!(json.is_none());
         } else {
             panic!("Expected CommandFinished");
         }
@@ -595,5 +767,131 @@ mod tests {
         let sequences = scanner.scan(data);
         assert_eq!(sequences.len(), 0);
         assert_eq!(scanner.state, State::Ground);
+    }
+
+    // ========== OSC 133 扩展测试 (aid 参数) ==========
+
+    #[test]
+    fn test_osc_133_prompt_start_with_aid() {
+        let mut scanner = OscScanner::new();
+        let data = b"\x1b]133;A;aid=cmd_001\x07";
+        let sequences = scanner.scan(data);
+
+        assert_eq!(sequences.len(), 1);
+        if let OscSequence::PromptStart { aid, json } = &sequences[0] {
+            assert_eq!(aid.as_deref(), Some("cmd_001"));
+            assert!(json.is_none());
+        } else {
+            panic!("Expected PromptStart, got {:?}", sequences[0]);
+        }
+    }
+
+    #[test]
+    fn test_osc_133_command_finished_with_aid() {
+        let mut scanner = OscScanner::new();
+        let data = b"\x1b]133;D;0;aid=cmd_001\x07";
+        let sequences = scanner.scan(data);
+
+        assert_eq!(sequences.len(), 1);
+        if let OscSequence::CommandFinished { exit_code, aid, json } = &sequences[0] {
+            assert_eq!(*exit_code, Some(0));
+            assert_eq!(aid.as_deref(), Some("cmd_001"));
+            assert!(json.is_none());
+        } else {
+            panic!("Expected CommandFinished, got {:?}", sequences[0]);
+        }
+    }
+
+    // ========== OSC 531 JSON 数据测试 ==========
+
+    #[test]
+    fn test_osc_531_simple_json() {
+        let mut scanner = OscScanner::new();
+        let data = b"\x1b]531;{\"type\":\"custom\",\"value\":42}\x07";
+        let sequences = scanner.scan(data);
+
+        assert_eq!(sequences.len(), 1);
+        if let OscSequence::JsonData { data_type, payload } = &sequences[0] {
+            assert_eq!(*data_type, JsonDataType::Custom);
+            assert_eq!(payload.get("type").and_then(|v| v.as_str()), Some("custom"));
+            assert_eq!(payload.get("value").and_then(|v| v.as_i64()), Some(42));
+        } else {
+            panic!("Expected JsonData, got {:?}", sequences[0]);
+        }
+    }
+
+    #[test]
+    fn test_osc_531_command_start_metadata() {
+        let mut scanner = OscScanner::new();
+        let json = r#"{"type":"command_start","command":"ls -la","cwd":"/home/user"}"#;
+        let data = format!("\x1b]531;{}\x07", json);
+        let sequences = scanner.scan(data.as_bytes());
+
+        assert_eq!(sequences.len(), 1);
+        if let OscSequence::JsonData { data_type, payload } = &sequences[0] {
+            assert_eq!(*data_type, JsonDataType::CommandMeta);
+            assert_eq!(payload.get("type").and_then(|v| v.as_str()), Some("command_start"));
+            assert_eq!(payload.get("command").and_then(|v| v.as_str()), Some("ls -la"));
+        } else {
+            panic!("Expected JsonData, got {:?}", sequences[0]);
+        }
+    }
+
+    #[test]
+    fn test_osc_531_escaped_json() {
+        let mut scanner = OscScanner::new();
+        // PowerShell 流程:
+        // 1. ConvertTo-Json: {"text":"line1\nline2"} (JSON中\n是两个字符: \ 和 n)
+        // 2. __ZTerm-Escape-Value: 转义反斜杠 \ (0x5c) → \x5c
+        // 3. 结果: {"text":"line1\x5cnline2"}
+
+        // 构造转义后的 JSON
+        let mut escaped_json = Vec::new();
+        escaped_json.extend_from_slice(b"{\"type\":\"custom\",\"text\":\"line1");
+        // 添加转义的反斜杠: \x5c (表示JSON中的\字符)
+        escaped_json.push(b'\\');
+        escaped_json.push(b'x');
+        escaped_json.push(b'5');
+        escaped_json.push(b'c');
+        // 添加 n (JSON中\n的第二个字符)
+        escaped_json.push(b'n');
+        escaped_json.extend_from_slice(b"line2\"}");
+
+        let mut data = Vec::new();
+        data.push(0x1b); // ESC
+        data.extend_from_slice(b"]531;");
+        data.extend_from_slice(&escaped_json);
+        data.push(0x07); // BEL
+
+        let sequences = scanner.scan(&data);
+
+        assert_eq!(sequences.len(), 1);
+        if let OscSequence::JsonData { payload, .. } = &sequences[0] {
+            // 反转义得到 {"text":"line1\nline2"}, JSON解析后文本包含换行符
+            assert_eq!(payload.get("text").and_then(|v| v.as_str()), Some("line1\nline2"));
+        } else {
+            panic!("Expected JsonData, got {:?}", sequences[0]);
+        }
+    }
+
+    // ========== 反转义功能测试 ==========
+
+    #[test]
+    fn test_unescape_value() {
+        assert_eq!(OscScanner::unescape_value("hello"), "hello");
+        assert_eq!(OscScanner::unescape_value("hello\\x0aworld"), "hello\nworld");
+        assert_eq!(OscScanner::unescape_value("hello\\x20world"), "hello world");
+        assert_eq!(OscScanner::unescape_value("a\\\\b"), "a\\b");
+        assert_eq!(OscScanner::unescape_value("a\\nb"), "a\nb");
+    }
+
+    #[test]
+    fn test_parse_params() {
+        let params = OscScanner::parse_params("aid=cmd_001;json={...}");
+        assert_eq!(params.get("aid"), Some(&"cmd_001".to_string()));
+        assert_eq!(params.get("json"), Some(&"{...}".to_string()));
+
+        let params = OscScanner::parse_params("0;aid=test");
+        assert_eq!(params.get("aid"), Some(&"test".to_string()));
     }
 }

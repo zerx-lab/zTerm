@@ -13,7 +13,6 @@ pub mod event;
 pub mod grid;
 pub mod pty;
 pub mod terminal;
-pub mod vte_bridge;
 pub mod vte_performer;
 
 #[cfg(feature = "shell-integration")]
@@ -22,7 +21,8 @@ pub mod shell_integration;
 // 公开 API
 pub use config::{PtyConfig, TerminalConfig};
 pub use event::{TerminalEvent, TerminalEventListener};
-pub use terminal::Terminal;
+pub use grid::{Cell, CellAttributes, Color, CursorShape, PhysRowIndex, VisibleRowIndex};
+pub use terminal::{CursorInfo, Terminal};
 
 /// 终端尺寸
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

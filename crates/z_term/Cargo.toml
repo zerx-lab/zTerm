@@ -13,6 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 zterm_common.workspace = true
+zterm_terminal.workspace = true
 zterm_ui.workspace = true
 axon_ui.workspace = true
 
@@ -37,7 +38,11 @@ windows.workspace = true
 [dev-dependencies]
 
 [features]
-default = []
+default = ["shell-integration"]
+shell-integration = [
+    "zterm_terminal/shell-integration",
+    "zterm_ui/shell-integration",
+]
 
 [build-dependencies]
 ico = "0.5.0"
