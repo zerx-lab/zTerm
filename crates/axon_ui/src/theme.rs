@@ -93,6 +93,20 @@ pub struct ThemeColors {
     pub menu_item_hover_text: Hsla,
     /// 禁用菜单项文本色
     pub menu_item_disabled_text: Hsla,
+
+    // 滚动条颜色 (参考 Zed 主题系统)
+    /// 滚动条滑块背景色
+    pub scrollbar_thumb_background: Hsla,
+    /// 滚动条滑块悬停背景色
+    pub scrollbar_thumb_hover_background: Hsla,
+    /// 滚动条滑块激活(拖拽中)背景色
+    pub scrollbar_thumb_active_background: Hsla,
+    /// 滚动条滑块边框色
+    pub scrollbar_thumb_border: Hsla,
+    /// 滚动条轨道背景色
+    pub scrollbar_track_background: Hsla,
+    /// 滚动条轨道边框色
+    pub scrollbar_track_border: Hsla,
 }
 
 /// 主题

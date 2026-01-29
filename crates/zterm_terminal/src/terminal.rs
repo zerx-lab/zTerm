@@ -300,6 +300,20 @@ impl Terminal {
         state.screen().effective_scrollback_lines()
     }
 
+    /// 获取滚动信息（用于滚动条显示）
+    ///
+    /// 返回 (effective_scrollback, viewport_rows, display_offset)
+    /// - effective_scrollback: 有效的 scrollback 行数（排除顶部空行）
+    /// - viewport_rows: 视口行数
+    /// - display_offset: 当前显示偏移量
+    pub fn scroll_info(&self) -> (usize, usize, usize) {
+        let state = self.state.lock();
+        let effective_scrollback = state.screen().effective_scrollback_lines();
+        let viewport_rows = state.rows();
+        let display_offset = *self.display_offset.lock();
+        (effective_scrollback, viewport_rows, display_offset)
+    }
+
     /// 向上滚动指定行数（查看历史）
     pub fn scroll_up_by(&self, lines: usize) {
         let max_offset = self.max_display_offset();

@@ -40,6 +40,14 @@ pub fn default_dark() -> Theme {
         menu_item_hover_background: hsla(207.0 / 360.0, 0.82, 0.66, 1.0), // 蓝色高亮
         menu_item_hover_text: hsla(0.0, 0.0, 1.0, 1.0),        // 白色文本
         menu_item_disabled_text: hsla(0.0, 0.0, 0.45, 1.0),    // 灰色禁用文本
+
+        // 滚动条颜色 - 更明显的可见度
+        scrollbar_thumb_background: hsla(0.0, 0.0, 0.55, 0.5),           // 更亮的灰色，更高透明度
+        scrollbar_thumb_hover_background: hsla(0.0, 0.0, 0.60, 0.7),     // 悬停时更明显
+        scrollbar_thumb_active_background: hsla(0.0, 0.0, 0.70, 0.9),    // 拖拽时高亮
+        scrollbar_thumb_border: hsla(0.0, 0.0, 0.0, 0.0),                // 透明边框
+        scrollbar_track_background: hsla(0.0, 0.0, 0.15, 0.3),           // 轻微可见的轨道背景
+        scrollbar_track_border: hsla(220.0 / 360.0, 0.13, 0.30, 1.0),    // 与 border 一致
     };
 
     Theme::new("Default Dark", Appearance::Dark, colors)
@@ -82,6 +90,14 @@ pub fn github_dark() -> Theme {
         menu_item_hover_background: hsla(212.0 / 360.0, 0.92, 0.62, 1.0), // GitHub 蓝色高亮
         menu_item_hover_text: hsla(0.0, 0.0, 1.0, 1.0),        // 白色文本
         menu_item_disabled_text: hsla(217.0 / 360.0, 0.10, 0.50, 1.0), // 灰色禁用文本
+
+        // 滚动条颜色
+        scrollbar_thumb_background: hsla(215.0 / 360.0, 0.12, 0.35, 0.4),
+        scrollbar_thumb_hover_background: hsla(215.0 / 360.0, 0.12, 0.40, 0.6),
+        scrollbar_thumb_active_background: hsla(215.0 / 360.0, 0.12, 0.45, 0.8),
+        scrollbar_thumb_border: hsla(0.0, 0.0, 0.0, 0.0),
+        scrollbar_track_background: hsla(0.0, 0.0, 0.0, 0.0),
+        scrollbar_track_border: hsla(215.0 / 360.0, 0.12, 0.22, 1.0),
     };
 
     Theme::new("GitHub Dark", Appearance::Dark, colors)
@@ -124,6 +140,14 @@ pub fn github_light() -> Theme {
         menu_item_hover_background: hsla(212.0 / 360.0, 1.0, 0.40, 1.0), // GitHub 蓝色高亮
         menu_item_hover_text: hsla(0.0, 0.0, 1.0, 1.0), // 白色文本
         menu_item_disabled_text: hsla(213.0 / 360.0, 0.10, 0.60, 1.0), // 浅灰色禁用文本
+
+        // 滚动条颜色
+        scrollbar_thumb_background: hsla(210.0 / 360.0, 0.18, 0.60, 0.3),
+        scrollbar_thumb_hover_background: hsla(210.0 / 360.0, 0.18, 0.50, 0.5),
+        scrollbar_thumb_active_background: hsla(210.0 / 360.0, 0.18, 0.40, 0.7),
+        scrollbar_thumb_border: hsla(0.0, 0.0, 0.0, 0.0),
+        scrollbar_track_background: hsla(0.0, 0.0, 0.0, 0.0),
+        scrollbar_track_border: hsla(210.0 / 360.0, 0.18, 0.85, 1.0),
     };
 
     Theme::new("GitHub Light", Appearance::Light, colors)
@@ -166,6 +190,14 @@ pub fn tokyo_night_dark() -> Theme {
         menu_item_hover_background: hsla(217.0 / 360.0, 0.92, 0.78, 1.0), // Tokyo Night 蓝色
         menu_item_hover_text: hsla(234.0 / 360.0, 0.17, 0.13, 1.0), // 深色文本以保持对比
         menu_item_disabled_text: hsla(225.0 / 360.0, 0.27, 0.64, 1.0), // text_muted 颜色
+
+        // 滚动条颜色
+        scrollbar_thumb_background: hsla(234.0 / 360.0, 0.17, 0.35, 0.4),
+        scrollbar_thumb_hover_background: hsla(234.0 / 360.0, 0.17, 0.40, 0.6),
+        scrollbar_thumb_active_background: hsla(217.0 / 360.0, 0.92, 0.78, 0.8),
+        scrollbar_thumb_border: hsla(0.0, 0.0, 0.0, 0.0),
+        scrollbar_track_background: hsla(0.0, 0.0, 0.0, 0.0),
+        scrollbar_track_border: hsla(234.0 / 360.0, 0.15, 0.25, 1.0),
     };
 
     Theme::new("Tokyo Night", Appearance::Dark, colors)
@@ -208,6 +240,14 @@ pub fn tokyo_night_light() -> Theme {
         menu_item_hover_background: hsla(221.0 / 360.0, 0.44, 0.37, 1.0), // Tokyo Night Light 蓝色
         menu_item_hover_text: hsla(0.0, 0.0, 1.0, 1.0),        // 白色文本
         menu_item_disabled_text: hsla(228.0 / 360.0, 0.10, 0.56, 1.0), // text_muted 颜色
+
+        // 滚动条颜色
+        scrollbar_thumb_background: hsla(240.0 / 360.0, 0.09, 0.50, 0.3),
+        scrollbar_thumb_hover_background: hsla(240.0 / 360.0, 0.09, 0.45, 0.5),
+        scrollbar_thumb_active_background: hsla(221.0 / 360.0, 0.44, 0.37, 0.7),
+        scrollbar_thumb_border: hsla(0.0, 0.0, 0.0, 0.0),
+        scrollbar_track_background: hsla(0.0, 0.0, 0.0, 0.0),
+        scrollbar_track_border: hsla(240.0 / 360.0, 0.08, 0.73, 1.0),
     };
 
     Theme::new("Tokyo Night Light", Appearance::Light, colors)
@@ -317,5 +357,99 @@ mod tests {
 
         // 验证深色主题的文本比浅色主题亮
         assert!(dark.colors().text.l > light.colors().text.l);
+    }
+}
+
+
+#[cfg(test)]
+mod scrollbar_tests {
+    use super::*;
+
+    #[test]
+    fn test_default_dark_scrollbar_colors() {
+        let theme = default_dark();
+        let colors = theme.colors();
+
+        // 验证滚动条颜色已定义且具有合理的 alpha 值
+        assert!(colors.scrollbar_thumb_background.a > 0.0);
+        assert!(colors.scrollbar_thumb_background.a < 1.0); // 应该是半透明
+        assert!(colors.scrollbar_thumb_hover_background.a > colors.scrollbar_thumb_background.a);
+        assert!(colors.scrollbar_thumb_active_background.a > colors.scrollbar_thumb_hover_background.a);
+
+        // 轨道背景应该是透明的
+        // Track background is now slightly visible for better UX
+        assert!(colors.scrollbar_track_background.a > 0.0 && colors.scrollbar_track_background.a < 0.5);
+    }
+
+    #[test]
+    fn test_github_dark_scrollbar_colors() {
+        let theme = github_dark();
+        let colors = theme.colors();
+
+        assert!(colors.scrollbar_thumb_background.a > 0.0);
+        assert!(colors.scrollbar_thumb_background.a < 1.0);
+    }
+
+    #[test]
+    fn test_github_light_scrollbar_colors() {
+        let theme = github_light();
+        let colors = theme.colors();
+
+        assert!(colors.scrollbar_thumb_background.a > 0.0);
+        assert!(colors.scrollbar_thumb_background.a < 1.0);
+    }
+
+    #[test]
+    fn test_tokyo_night_dark_scrollbar_colors() {
+        let theme = tokyo_night_dark();
+        let colors = theme.colors();
+
+        assert!(colors.scrollbar_thumb_background.a > 0.0);
+        assert!(colors.scrollbar_thumb_background.a < 1.0);
+    }
+
+    #[test]
+    fn test_tokyo_night_light_scrollbar_colors() {
+        let theme = tokyo_night_light();
+        let colors = theme.colors();
+
+        assert!(colors.scrollbar_thumb_background.a > 0.0);
+        assert!(colors.scrollbar_thumb_background.a < 1.0);
+    }
+
+    #[test]
+    fn test_all_themes_have_scrollbar_colors() {
+        let registry = create_builtin_registry();
+
+        for theme in registry.all() {
+            let colors = theme.colors();
+
+            // 验证所有主题都有滚动条颜色定义
+            // 滑块颜色应该是半透明的 (0 < alpha < 1)
+            assert!(
+                colors.scrollbar_thumb_background.a > 0.0,
+                "Theme {} should have scrollbar_thumb_background with alpha > 0",
+                theme.name()
+            );
+            assert!(
+                colors.scrollbar_thumb_background.a <= 1.0,
+                "Theme {} should have scrollbar_thumb_background with alpha <= 1",
+                theme.name()
+            );
+
+            // 悬停颜色应该比基础颜色更明显
+            assert!(
+                colors.scrollbar_thumb_hover_background.a >= colors.scrollbar_thumb_background.a,
+                "Theme {} hover alpha should be >= base alpha",
+                theme.name()
+            );
+
+            // 激活颜色应该比悬停颜色更明显
+            assert!(
+                colors.scrollbar_thumb_active_background.a >= colors.scrollbar_thumb_hover_background.a,
+                "Theme {} active alpha should be >= hover alpha",
+                theme.name()
+            );
+        }
     }
 }

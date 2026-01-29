@@ -83,15 +83,26 @@ impl TerminalScrollHandle {
     }
 
     /// 从终端更新滚动状态
+    ///
+    /// 使用 `scroll_info()` 获取有效的滚动范围，确保滚动条与实际滚动行为一致。
+    /// 关键点：使用 effective_scrollback（排除顶部空行）而不是 total_lines - viewport。
     pub fn update(&self, line_height: Pixels) {
-        let size = self.terminal.size();
-        let (_, total_lines, display_offset) = self.terminal.get_viewport_cells();
+        let (effective_scrollback, viewport_rows, display_offset) = self.terminal.scroll_info();
 
         let mut state = self.state.borrow_mut();
         state.line_height = line_height;
-        state.total_lines = total_lines;
-        state.viewport_lines = size.rows as usize;
+        // total_lines = viewport + effective_scrollback，这样 max_offset = effective_scrollback
+        state.total_lines = viewport_rows + effective_scrollback;
+        state.viewport_lines = viewport_rows;
         state.display_offset = display_offset;
+
+        tracing::debug!(
+            "TerminalScrollHandle::update: effective_scrollback={}, viewport={}, display_offset={}, total_lines={}",
+            effective_scrollback,
+            viewport_rows,
+            display_offset,
+            state.total_lines
+        );
     }
 
     /// 应用待处理的滚动偏移
@@ -259,7 +270,14 @@ impl TerminalScrollHandle {
     /// 检查点是否在滑块内
     pub fn is_point_in_thumb(&self, point: Point<Pixels>, track_bounds: Bounds<Pixels>) -> bool {
         let thumb_bounds = self.thumb_bounds(track_bounds);
-        thumb_bounds.contains(&point)
+        let result = thumb_bounds.contains(&point);
+        tracing::info!(
+            "is_point_in_thumb: point={:?}, thumb={:?}, result={}",
+            point,
+            thumb_bounds,
+            result
+        );
+        result
     }
 
     /// 检查点是否在轨道内

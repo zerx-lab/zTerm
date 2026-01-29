@@ -846,29 +846,21 @@ impl TerminalElement {
         scroll_handle: &TerminalScrollHandle,
         window: &mut Window,
     ) {
-        // Scrollbar colors from theme
-        let track_color = theme_colors.surface_background;
-        let thumb_base_color = {
-            let mut c = theme_colors.border;
-            c.a = 0.5;
-            c
-        };
-        let thumb_hover_color = {
-            let mut c = theme_colors.border;
-            c.a = 0.7;
-            c
-        };
-        let thumb_active_color = {
-            let mut c = theme_colors.tab_active_indicator;
-            c.a = 0.8;
-            c
-        };
+        // Use dedicated scrollbar colors from theme (reference: Zed theme system)
+        let track_color = theme_colors.scrollbar_track_background;
+        let thumb_base_color = theme_colors.scrollbar_thumb_background;
+        let thumb_hover_color = theme_colors.scrollbar_thumb_hover_background;
+        let thumb_active_color = theme_colors.scrollbar_thumb_active_background;
 
         // Paint track background
         window.paint_quad(fill(track_bounds, track_color));
 
         // Calculate and paint thumb
         let thumb_bounds = scroll_handle.thumb_bounds(track_bounds);
+        tracing::debug!(
+            "paint_scrollbar: thumb_bounds={:?}",
+            thumb_bounds
+        );
         let thumb_color =
             scroll_handle.thumb_color(thumb_base_color, thumb_hover_color, thumb_active_color);
 
@@ -888,35 +880,53 @@ impl TerminalElement {
         scroll_handle: TerminalScrollHandle,
         window: &mut Window,
     ) {
+        tracing::info!(
+            "register_scrollbar_listeners called: track_bounds={:?}",
+            track_bounds
+        );
         // Mouse down - start drag or jump to position
         let handle_down = scroll_handle.clone();
         let track_bounds_down = track_bounds;
-        window.on_mouse_event(move |event: &MouseDownEvent, phase, window, _cx| {
+        window.on_mouse_event(move |event: &MouseDownEvent, phase, window, cx| {
+            tracing::info!("MouseDownEvent: pos={:?}, phase={:?}, button={:?}", event.position, phase, event.button);
             if phase != gpui::DispatchPhase::Bubble {
+                tracing::trace!("  -> Wrong phase, skipping");
                 return;
             }
             if event.button != MouseButton::Left {
+                tracing::debug!("  -> Not left button");
                 return;
             }
             if !track_bounds_down.contains(&event.position) {
+                tracing::info!("  -> Outside scrollbar track");
+                tracing::debug!("    track_bounds={:?}, event.pos={:?}", track_bounds_down, event.position);
                 return;
-            }
-
-            if handle_down.is_point_in_thumb(event.position, track_bounds_down) {
+            }            let is_in_thumb = handle_down.is_point_in_thumb(event.position, track_bounds_down);
+            tracing::info!("  -> Checking thumb hit: is_in_thumb={}", is_in_thumb);
+            if is_in_thumb {
+                tracing::info!("  -> Click on thumb, starting drag");
                 // Click on thumb - start dragging
                 handle_down.start_drag(event.position.y, track_bounds_down);
             } else {
+                tracing::info!("  -> Click on track, jumping to position");
                 // Click on track - jump to position
                 handle_down.jump_to_position(event.position.y, track_bounds_down);
             }
             window.refresh();
+            cx.stop_propagation();
         });
+            
+            // Stop propagation after handling scrollbar event
+            // This prevents the terminal content area from receiving the event
 
         // Mouse move - update drag or hover state
         let handle_move = scroll_handle.clone();
-        let track_bounds_move = track_bounds;
-        window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, _cx| {
+        let track_bounds_move = track_bounds;        window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
+            if event.dragging() {
+                tracing::info!("MouseMoveEvent while dragging: pos={:?}, phase={:?}", event.position, phase);
+            }
             if phase != gpui::DispatchPhase::Bubble {
+                tracing::trace!("  -> Wrong phase, skipping");
                 return;
             }
 
@@ -927,6 +937,7 @@ impl TerminalElement {
                     // Continue dragging
                     handle_move.update_drag(event.position.y, track_bounds_move);
                     window.refresh();
+                    cx.stop_propagation();
                 }
                 _ => {
                     // Update hover state
@@ -935,6 +946,9 @@ impl TerminalElement {
                     if in_thumb != was_hovered {
                         handle_move.set_hovered(in_thumb);
                         window.refresh();
+                        if in_thumb {
+                            cx.stop_propagation();
+                        }
                     }
                 }
             }
@@ -942,17 +956,20 @@ impl TerminalElement {
 
         // Mouse up - end drag
         let handle_up = scroll_handle.clone();
-        window.on_mouse_event(move |event: &MouseUpEvent, phase, window, _cx| {
+        window.on_mouse_event(move |event: &MouseUpEvent, phase, window, cx| {
             if phase != gpui::DispatchPhase::Bubble {
+                tracing::trace!("  -> Wrong phase, skipping");
                 return;
             }
             if event.button != MouseButton::Left {
+                tracing::debug!("  -> Not left button");
                 return;
             }
 
             if matches!(handle_up.thumb_state.get(), ThumbState::Dragging { .. }) {
                 handle_up.end_drag();
                 window.refresh();
+                cx.stop_propagation();
             }
         });
     }

@@ -166,6 +166,40 @@ pub struct SerializableThemeColors {
     pub menu_item_hover_background: SerializableColor,
     pub menu_item_hover_text: SerializableColor,
     pub menu_item_disabled_text: SerializableColor,
+
+    // 滚动条颜色
+    #[serde(default = "default_scrollbar_thumb_background")]
+    pub scrollbar_thumb_background: SerializableColor,
+    #[serde(default = "default_scrollbar_thumb_hover_background")]
+    pub scrollbar_thumb_hover_background: SerializableColor,
+    #[serde(default = "default_scrollbar_thumb_active_background")]
+    pub scrollbar_thumb_active_background: SerializableColor,
+    #[serde(default = "default_scrollbar_thumb_border")]
+    pub scrollbar_thumb_border: SerializableColor,
+    #[serde(default = "default_scrollbar_track_background")]
+    pub scrollbar_track_background: SerializableColor,
+    #[serde(default = "default_scrollbar_track_border")]
+    pub scrollbar_track_border: SerializableColor,
+}
+
+// Default functions for scrollbar colors
+fn default_scrollbar_thumb_background() -> SerializableColor {
+    SerializableColor::Hsla { h: 0.0, s: 0.0, l: 0.45, a: 0.3 }
+}
+fn default_scrollbar_thumb_hover_background() -> SerializableColor {
+    SerializableColor::Hsla { h: 0.0, s: 0.0, l: 0.50, a: 0.5 }
+}
+fn default_scrollbar_thumb_active_background() -> SerializableColor {
+    SerializableColor::Hsla { h: 0.0, s: 0.0, l: 0.55, a: 0.7 }
+}
+fn default_scrollbar_thumb_border() -> SerializableColor {
+    SerializableColor::Hsla { h: 0.0, s: 0.0, l: 0.0, a: 0.0 }
+}
+fn default_scrollbar_track_background() -> SerializableColor {
+    SerializableColor::Hsla { h: 0.0, s: 0.0, l: 0.0, a: 0.0 }
+}
+fn default_scrollbar_track_border() -> SerializableColor {
+    SerializableColor::Hsla { h: 220.0, s: 0.13, l: 0.30, a: 1.0 }
 }
 
 impl SerializableThemeColors {
@@ -197,6 +231,12 @@ impl SerializableThemeColors {
             menu_item_hover_background: self.menu_item_hover_background.to_hsla()?,
             menu_item_hover_text: self.menu_item_hover_text.to_hsla()?,
             menu_item_disabled_text: self.menu_item_disabled_text.to_hsla()?,
+            scrollbar_thumb_background: self.scrollbar_thumb_background.to_hsla()?,
+            scrollbar_thumb_hover_background: self.scrollbar_thumb_hover_background.to_hsla()?,
+            scrollbar_thumb_active_background: self.scrollbar_thumb_active_background.to_hsla()?,
+            scrollbar_thumb_border: self.scrollbar_thumb_border.to_hsla()?,
+            scrollbar_track_background: self.scrollbar_track_background.to_hsla()?,
+            scrollbar_track_border: self.scrollbar_track_border.to_hsla()?,
         })
     }
 
@@ -230,6 +270,12 @@ impl SerializableThemeColors {
             ),
             menu_item_hover_text: SerializableColor::from_hsla(colors.menu_item_hover_text),
             menu_item_disabled_text: SerializableColor::from_hsla(colors.menu_item_disabled_text),
+            scrollbar_thumb_background: SerializableColor::from_hsla(colors.scrollbar_thumb_background),
+            scrollbar_thumb_hover_background: SerializableColor::from_hsla(colors.scrollbar_thumb_hover_background),
+            scrollbar_thumb_active_background: SerializableColor::from_hsla(colors.scrollbar_thumb_active_background),
+            scrollbar_thumb_border: SerializableColor::from_hsla(colors.scrollbar_thumb_border),
+            scrollbar_track_background: SerializableColor::from_hsla(colors.scrollbar_track_background),
+            scrollbar_track_border: SerializableColor::from_hsla(colors.scrollbar_track_border),
         }
     }
 }
